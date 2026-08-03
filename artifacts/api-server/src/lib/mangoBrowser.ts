@@ -89,6 +89,16 @@ export async function mangoBrowserLogin(
             refreshToken: tokens.refresh ? clean(tokens.refresh) : clean(tokens.auth),
           };
         }
+        // After login the CCC shows a "Начать" gate — click it to enter the app.
+        await page
+          .evaluate(() => {
+            const doc = (globalThis as { document?: { querySelectorAll(s: string): ArrayLike<{ textContent?: string | null; click(): void }> } }).document;
+            if (!doc) return;
+            const buttons = Array.from(doc.querySelectorAll("button"));
+            const start = buttons.find((b) => /начать/i.test(b.textContent ?? ""));
+            start?.click();
+          })
+          .catch(() => {});
         continue; // SPA still booting — tokens not written yet
       }
 

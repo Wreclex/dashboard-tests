@@ -44,31 +44,29 @@ router.put("/credentials", requireAuth, async (req: any, res): Promise<void> => 
     return;
   }
 
-  try {
-    const tokens = await mangoBrowserLogin(email.trim(), password);
-
+  // Save credentials first (encrypted) — even if the verification login fails
+  // (e.g. captcha), the KPI flow will retry with them later.
+  const persist = async (tokens?: { authToken: string; refreshToken: string }) => {
+    const base = {
+      email: encryptToken(email.trim()),
+      password: encryptToken(password),
+      updatedAt: new Date(),
+    };
+    const withTokens = tokens
+      ? { ...base, authToken: encryptToken(tokens.authToken), refreshToken: encryptToken(tokens.refreshToken) }
+      : base;
     await db
       .insert(mangoCredentials)
-      .values({
-        userId: req.userId,
-        email: encryptToken(email.trim()),
-        password: encryptToken(password),
-        authToken: encryptToken(tokens.authToken),
-        refreshToken: encryptToken(tokens.refreshToken),
-        updatedAt: new Date(),
-      })
-      .onConflictDoUpdate({
-        target: mangoCredentials.userId,
-        set: {
-          email: encryptToken(email.trim()),
-          password: encryptToken(password),
-          authToken: encryptToken(tokens.authToken),
-          refreshToken: encryptToken(tokens.refreshToken),
-          updatedAt: new Date(),
-        },
-      });
+      .values({ userId: req.userId, ...withTokens })
+      .onConflictDoUpdate({ target: mangoCredentials.userId, set: withTokens });
+  };
+
+  try {
+    const tokens = await mangoBrowserLogin(email.trim(), password);
+    await persist(tokens);
     res.status(204).send();
   } catch (err) {
+    await persist().catch((e) => req.log.error({ err: e }, "Failed to persist Mango credentials"));
     if (err instanceof MangoAuthError) {
       res.status(401).json({ error: "auth_failed", message: err.message });
       return;

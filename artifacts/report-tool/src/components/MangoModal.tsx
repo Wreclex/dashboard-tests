@@ -164,14 +164,16 @@ export default function MangoModal({ open, onClose, isSignedIn }: Props) {
                   Логин и пароль от <a href="https://ccc.mango-office.ru" target="_blank" rel="noreferrer" className="text-primary underline underline-offset-2">ccc.mango-office.ru</a>
                 </span>
                 <p className="text-[11px] text-muted-foreground leading-relaxed">
+                  В поле логина укажите именно логин (не email), как на странице входа Mango.
+                <p className="text-[11px] text-muted-foreground leading-relaxed">
                   Сервер сам войдёт в Mango через невидимый браузер и будет автоматически обновлять сессию. Никаких закладок и токенов вручную.
                 </p>
                 <div className="flex items-center rounded-2xl h-12 px-3 bg-white/[0.04] border border-white/[0.06] focus-within:border-primary/40 focus-within:bg-white/[0.06] transition-colors">
                   <input
-                    type="email"
+                    type="text"
                     value={email}
                     onChange={e => setEmail(e.target.value)}
-                    placeholder="Email в Mango"
+                    placeholder="Логин в Mango"
                     autoComplete="username"
                     className="flex-1 bg-transparent text-foreground text-sm outline-none px-1"
                   />
