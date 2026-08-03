@@ -9,6 +9,15 @@ export interface HealthStatus {
   status: string;
 }
 
+export interface SheetCounts {
+  pzm: number;
+  psm: number;
+  pstl: number;
+  vstl: number;
+  dozh: number;
+  date: string;
+}
+
 export interface TelegramChannel {
   id: number;
   name: string;

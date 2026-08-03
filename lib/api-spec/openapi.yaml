@@ -12,6 +12,8 @@ tags:
     description: Health operations
   - name: telegram
     description: Telegram channel management and message delivery
+  - name: sheets
+    description: Google Sheets data sync
 paths:
   /healthz:
     get:
@@ -26,6 +28,23 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/HealthStatus"
+
+  /sheets/counts:
+    get:
+      operationId: getSheetCounts
+      tags: [sheets]
+      summary: Count today's touches per metric from Google Sheets
+      responses:
+        "200":
+          description: Today's metric counts
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SheetCounts"
+        "401":
+          description: Unauthorized
+        "502":
+          description: Google Sheets API error
 
   /telegram/channels:
     get:
@@ -143,6 +162,29 @@ components:
           type: string
       required:
         - status
+
+    SheetCounts:
+      type: object
+      properties:
+        pzm:
+          type: number
+        psm:
+          type: number
+        pstl:
+          type: number
+        vstl:
+          type: number
+        dozh:
+          type: number
+        date:
+          type: string
+      required:
+        - pzm
+        - psm
+        - pstl
+        - vstl
+        - dozh
+        - date
 
     TelegramChannel:
       type: object

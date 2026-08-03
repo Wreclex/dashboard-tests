@@ -18,6 +18,19 @@ export const HealthCheckResponse = zod.object({
 
 
 /**
+ * @summary Count today's touches per metric from Google Sheets
+ */
+export const GetSheetCountsResponse = zod.object({
+  "pzm": zod.number(),
+  "psm": zod.number(),
+  "pstl": zod.number(),
+  "vstl": zod.number(),
+  "dozh": zod.number(),
+  "date": zod.string()
+})
+
+
+/**
  * @summary List the authenticated user's Telegram channels
  */
 export const ListTelegramChannelsResponseItem = zod.object({

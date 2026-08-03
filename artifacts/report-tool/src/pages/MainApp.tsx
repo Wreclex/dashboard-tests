@@ -7,7 +7,8 @@ import SignatureModal from '@/components/SignatureModal';
 import TelegramModal from '@/components/TelegramModal';
 import DefaultsModal from '@/components/DefaultsModal';
 import { useReportState, buildPreviewText, formatDate } from '@/hooks/useReportState';
-import { Settings, Send, RotateCcw, Copy, Check, LogIn, LogOut, SlidersHorizontal } from 'lucide-react';
+import { useGetSheetCounts, getGetSheetCountsQueryKey } from '@workspace/api-client-react';
+import { Settings, Send, RotateCcw, Copy, Check, LogIn, LogOut, SlidersHorizontal, RefreshCw } from 'lucide-react';
 
 const basePath = import.meta.env.BASE_URL.replace(/\/$/, '');
 
@@ -28,6 +29,29 @@ export default function MainApp() {
   const [tgOpen, setTgOpen] = useState(false);
   const [defaultsOpen, setDefaultsOpen] = useState(false);
   const [copied, setCopied] = useState(false);
+  const [syncStatus, setSyncStatus] = useState<'idle' | 'loading' | 'ok' | 'err'>('idle');
+
+  const { refetch: fetchSheetCounts } = useGetSheetCounts({
+    query: { enabled: false, queryKey: getGetSheetCountsQueryKey() },
+  });
+
+  const handleSyncSheet = useCallback(async () => {
+    setSyncStatus('loading');
+    try {
+      const { data, error } = await fetchSheetCounts();
+      if (error || !data) { setSyncStatus('err'); setTimeout(() => setSyncStatus('idle'), 2500); return; }
+      updateField('pzm', data.pzm);
+      updateField('psm', data.psm);
+      updateField('pstl', data.pstl);
+      updateField('vstl', data.vstl);
+      updateField('dozh', data.dozh);
+      setSyncStatus('ok');
+      setTimeout(() => setSyncStatus('idle'), 2500);
+    } catch {
+      setSyncStatus('err');
+      setTimeout(() => setSyncStatus('idle'), 2500);
+    }
+  }, [fetchSheetCounts, updateField]);
 
   const today = formatDate(new Date());
   const previewText = buildPreviewText(tab, state, signature, today);
@@ -118,9 +142,27 @@ export default function MainApp() {
             <div className="flex-[3] p-5 border-r border-border min-w-0">
               {/* Main counters */}
               <div className="mb-5">
-                <p className="text-[9px] font-bold uppercase tracking-[0.2em] text-muted-foreground/60 mb-3">
-                  Основные показатели
-                </p>
+                <div className="flex items-center justify-between mb-3">
+                  <p className="text-[9px] font-bold uppercase tracking-[0.2em] text-muted-foreground/60">
+                    Основные показатели
+                  </p>
+                  <Show when="signed-in">
+                    <button
+                      onClick={handleSyncSheet}
+                      disabled={syncStatus === 'loading'}
+                      className={`flex items-center gap-1 text-[9px] font-bold uppercase tracking-widest transition-colors ${
+                        syncStatus === 'ok'
+                          ? 'text-green-500'
+                          : syncStatus === 'err'
+                          ? 'text-destructive'
+                          : 'text-muted-foreground/60 hover:text-primary'
+                      }`}
+                    >
+                      <RefreshCw size={9} className={syncStatus === 'loading' ? 'animate-spin' : ''} />
+                      {syncStatus === 'ok' ? 'Синхр.' : syncStatus === 'err' ? 'Ошибка' : 'Sheets'}
+                    </button>
+                  </Show>
+                </div>
                 <div className="grid grid-cols-2 gap-3">
                   <CounterField label="ПЗМ" value={state.pzm} onChange={v => updateField('pzm', v)} />
                   <CounterField label="ПСМ" value={state.psm} onChange={v => updateField('psm', v)} />

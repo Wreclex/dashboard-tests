@@ -7,6 +7,7 @@
  */
 
 export * from './healthStatus';
+export * from './sheetCounts';
 export * from './telegramChannel';
 export * from './telegramChannelInput';
 export * from './telegramChannelUpdate';

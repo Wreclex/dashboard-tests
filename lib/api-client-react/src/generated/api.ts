@@ -21,6 +21,7 @@ import type {
 
 import type {
   HealthStatus,
+  SheetCounts,
   TelegramChannel,
   TelegramChannelInput,
   TelegramChannelUpdate,
@@ -121,6 +122,83 @@ export function useHealthCheck<TData = Awaited<ReturnType<typeof healthCheck>>, 
  ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
 
   const queryOptions = getHealthCheckQueryOptions(options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getGetSheetCountsUrl = () => {
+
+
+
+
+  return `/api/sheets/counts`
+}
+
+/**
+ * @summary Count today's touches per metric from Google Sheets
+ */
+export const getSheetCounts = async ( options?: Parameters<typeof customFetch>[1]): Promise<SheetCounts> => {
+
+  return customFetch<SheetCounts>(getGetSheetCountsUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetSheetCountsQueryKey = () => {
+    return [
+    `/api/sheets/counts`
+    ] as const;
+    }
+
+
+export const getGetSheetCountsQueryOptions = <TData = Awaited<ReturnType<typeof getSheetCounts>>, TError = ErrorType<void>>( options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getSheetCounts>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetSheetCountsQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getSheetCounts>>> = ({ signal }) => getSheetCounts({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getSheetCounts>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetSheetCountsQueryResult = NonNullable<Awaited<ReturnType<typeof getSheetCounts>>>
+export type GetSheetCountsQueryError = ErrorType<void>
+
+
+/**
+ * @summary Count today's touches per metric from Google Sheets
+ */
+
+export function useGetSheetCounts<TData = Awaited<ReturnType<typeof getSheetCounts>>, TError = ErrorType<void>>(
+  options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getSheetCounts>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetSheetCountsQueryOptions(options)
 
   const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
 
