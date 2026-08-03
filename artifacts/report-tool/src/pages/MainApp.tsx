@@ -5,8 +5,9 @@ import CounterField from '@/components/CounterField';
 import TimeInput from '@/components/TimeInput';
 import SignatureModal from '@/components/SignatureModal';
 import TelegramModal from '@/components/TelegramModal';
+import DefaultsModal from '@/components/DefaultsModal';
 import { useReportState, buildPreviewText, formatDate } from '@/hooks/useReportState';
-import { Settings, Send, RotateCcw, Copy, Check, LogIn, LogOut } from 'lucide-react';
+import { Settings, Send, RotateCcw, Copy, Check, LogIn, LogOut, SlidersHorizontal } from 'lucide-react';
 
 const basePath = import.meta.env.BASE_URL.replace(/\/$/, '');
 
@@ -18,13 +19,14 @@ export default function MainApp() {
   const [, setLocation] = useLocation();
   const userId = user?.id ?? null;
 
-  const { state, updateField, resetState, signature, saveSignature } =
+  const { state, updateField, resetState, signature, saveSignature, userDefaults, saveUserDefaults } =
     useReportState(userId);
 
   const [tab, setTab] = useState(0);
   const [previewActive, setPreviewActive] = useState(true);
   const [sigOpen, setSigOpen] = useState(false);
   const [tgOpen, setTgOpen] = useState(false);
+  const [defaultsOpen, setDefaultsOpen] = useState(false);
   const [copied, setCopied] = useState(false);
 
   const today = formatDate(new Date());
@@ -236,6 +238,14 @@ export default function MainApp() {
                 </button>
                 <span className="text-border/40 mx-1">|</span>
                 <button
+                  onClick={() => setDefaultsOpen(true)}
+                  className="flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-widest text-muted-foreground hover:text-primary transition-colors px-2 py-1"
+                >
+                  <SlidersHorizontal size={11} />
+                  Умолч.
+                </button>
+                <span className="text-border/40 mx-1">|</span>
+                <button
                   onClick={resetState}
                   className="flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-widest text-muted-foreground hover:text-foreground transition-colors px-2 py-1"
                 >
@@ -290,6 +300,12 @@ export default function MainApp() {
         open={tgOpen}
         onClose={() => setTgOpen(false)}
         previewText={previewText}
+      />
+      <DefaultsModal
+        open={defaultsOpen}
+        onClose={() => setDefaultsOpen(false)}
+        defaults={userDefaults}
+        onSave={saveUserDefaults}
       />
     </div>
   );

@@ -66,9 +66,26 @@ const DEFAULT_SIGNATURE: SignatureConfig = {
   mention: 'DmitriyGysak',
 };
 
+export interface UserDefaults {
+  trafikPlan: string;
+  prihod: string;
+  tag1: string;
+  tag2: string;
+  mention: string;
+}
+
+const DEFAULT_USER_DEFAULTS: UserDefaults = {
+  trafikPlan: '03:00:00',
+  prihod: '08:10',
+  tag1: DEFAULT_SIGNATURE.tag1,
+  tag2: DEFAULT_SIGNATURE.tag2,
+  mention: DEFAULT_SIGNATURE.mention,
+};
+
 const STATE_KEY_PREFIX = 'report-tool-state';
 const SIGNATURE_KEY_PREFIX = 'report-tool-signature';
 const TG_CONFIG_KEY = 'report-tool-tg-config';
+const DEFAULTS_KEY_PREFIX = 'report-tool-defaults';
 
 function getStateKey(userId: string | null): string {
   return `${STATE_KEY_PREFIX}-${userId ?? 'anonymous'}`;
@@ -76,6 +93,10 @@ function getStateKey(userId: string | null): string {
 
 function getSignatureKey(userId: string | null): string {
   return `${SIGNATURE_KEY_PREFIX}-${userId ?? 'anonymous'}`;
+}
+
+function getDefaultsKey(userId: string | null): string {
+  return `${DEFAULTS_KEY_PREFIX}-${userId ?? 'anonymous'}`;
 }
 
 function loadFromStorage<T>(key: string, fallback: T): T {
@@ -95,22 +116,35 @@ function saveToStorage(key: string, value: unknown): void {
 export function useReportState(userId: string | null) {
   const stateKey = getStateKey(userId);
   const sigKey = getSignatureKey(userId);
+  const defaultsKey = getDefaultsKey(userId);
 
-  const [state, setState] = useState<ReportState>(() =>
-    loadFromStorage<ReportState>(stateKey, defaultState())
+  const [userDefaults, setUserDefaultsState] = useState<UserDefaults>(() =>
+    loadFromStorage<UserDefaults>(defaultsKey, DEFAULT_USER_DEFAULTS)
   );
-  const [signature, setSignatureState] = useState<SignatureConfig>(() =>
-    loadFromStorage<SignatureConfig>(sigKey, DEFAULT_SIGNATURE)
-  );
+
+  const [state, setState] = useState<ReportState>(() => {
+    const defaults = loadFromStorage<UserDefaults>(defaultsKey, DEFAULT_USER_DEFAULTS);
+    return loadFromStorage<ReportState>(stateKey, { ...defaultState(), trafikPlan: defaults.trafikPlan, prihod: defaults.prihod });
+  });
+
+  const [signature, setSignatureState] = useState<SignatureConfig>(() => {
+    const defaults = loadFromStorage<UserDefaults>(defaultsKey, DEFAULT_USER_DEFAULTS);
+    const fallback: SignatureConfig = { tag1: defaults.tag1, tag2: defaults.tag2, mention: defaults.mention };
+    return loadFromStorage<SignatureConfig>(sigKey, fallback);
+  });
+
   const [tgConfig, setTgConfigState] = useState<TelegramConfig>(() =>
     loadFromStorage<TelegramConfig>(TG_CONFIG_KEY, { channels: [] })
   );
 
   // Reload when user changes (login/logout)
   useEffect(() => {
-    setState(loadFromStorage<ReportState>(stateKey, defaultState()));
-    setSignatureState(loadFromStorage<SignatureConfig>(sigKey, DEFAULT_SIGNATURE));
-  }, [stateKey, sigKey]);
+    const defaults = loadFromStorage<UserDefaults>(defaultsKey, DEFAULT_USER_DEFAULTS);
+    setUserDefaultsState(defaults);
+    setState(loadFromStorage<ReportState>(stateKey, { ...defaultState(), trafikPlan: defaults.trafikPlan, prihod: defaults.prihod }));
+    const sigFallback: SignatureConfig = { tag1: defaults.tag1, tag2: defaults.tag2, mention: defaults.mention };
+    setSignatureState(loadFromStorage<SignatureConfig>(sigKey, sigFallback));
+  }, [stateKey, sigKey, defaultsKey]);
 
   // Auto-save state
   useEffect(() => {
@@ -131,13 +165,14 @@ export function useReportState(userId: string | null) {
   }, []);
 
   const resetState = useCallback(() => {
+    const currentDefaults = loadFromStorage<UserDefaults>(defaultsKey, DEFAULT_USER_DEFAULTS);
     setState(prev => ({
       ...defaultState(),
-      trafikPlan: prev.trafikPlan,
-      prihod: prev.prihod,
+      trafikPlan: currentDefaults.trafikPlan,
+      prihod: currentDefaults.prihod,
       financesEnabled: prev.financesEnabled,
     }));
-  }, []);
+  }, [defaultsKey]);
 
   const saveSignature = useCallback((sig: SignatureConfig) => {
     setSignatureState(sig);
@@ -149,6 +184,21 @@ export function useReportState(userId: string | null) {
     saveToStorage(TG_CONFIG_KEY, cfg);
   }, []);
 
+  const saveUserDefaults = useCallback((defaults: UserDefaults) => {
+    setUserDefaultsState(defaults);
+    saveToStorage(defaultsKey, defaults);
+    // Apply defaults immediately to current session
+    setState(prev => ({
+      ...prev,
+      trafikPlan: defaults.trafikPlan,
+      prihod: defaults.prihod,
+    }));
+    // Apply signature defaults immediately
+    const newSig: SignatureConfig = { tag1: defaults.tag1, tag2: defaults.tag2, mention: defaults.mention };
+    setSignatureState(newSig);
+    saveToStorage(sigKey, newSig);
+  }, [defaultsKey, sigKey]);
+
   return {
     state,
     updateField,
@@ -157,6 +207,8 @@ export function useReportState(userId: string | null) {
     saveSignature,
     tgConfig,
     saveTgConfig,
+    userDefaults,
+    saveUserDefaults,
   };
 }
 
