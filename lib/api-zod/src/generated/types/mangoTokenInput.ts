@@ -8,7 +8,6 @@
 
 export interface MangoTokenInput {
   /** @minLength 1 */
-  email: string;
-  /** @minLength 1 */
-  password: string;
+  token: string;
+  refresh?: string;
 }

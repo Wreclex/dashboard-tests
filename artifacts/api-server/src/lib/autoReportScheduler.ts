@@ -185,12 +185,12 @@ async function sendDueReports(): Promise<void> {
         }
         try {
           const [mangoCredential] = await db
-            .select({ email: mangoCredentials.email, password: mangoCredentials.password })
+            .select({ authToken: mangoCredentials.authToken, refreshToken: mangoCredentials.refreshToken })
             .from(mangoCredentials)
             .where(eq(mangoCredentials.userId, schedule.userId))
             .limit(1);
           if (mangoCredential) {
-            const mango = await getMangoKpi(mangoCredential.email, mangoCredential.password, {
+            const mango = await getMangoKpi(mangoCredential.authToken, mangoCredential.refreshToken, {
               totalTimeoutMs: MANGO_SCHEDULER_BUDGET_MS,
             });
             state.kz = mango.calls;

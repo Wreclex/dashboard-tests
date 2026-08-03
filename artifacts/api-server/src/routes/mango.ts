@@ -31,33 +31,36 @@ router.get("/status", requireAuth, async (req: any, res): Promise<void> => {
   }
 });
 
+/** Store auth_token + optional refresh_token obtained from the Mango CCC localStorage bookmarklet. */
 router.put("/token", requireAuth, async (req: any, res): Promise<void> => {
-  const { email, password } = req.body ?? {};
-  if (typeof email !== "string" || !email.trim() ||
-      typeof password !== "string" || !password.trim()) {
-    res.status(400).json({ error: "email and password are required" });
+  const { token, refresh } = req.body ?? {};
+  if (typeof token !== "string" || !token.trim()) {
+    res.status(400).json({ error: "token is required" });
     return;
   }
+  const authToken = token.trim();
+  const refreshToken = typeof refresh === "string" && refresh.trim() ? refresh.trim() : authToken;
+
   try {
     await db
       .insert(mangoCredentials)
       .values({
         userId: req.userId,
-        email: encryptToken(email.trim()),
-        password: encryptToken(password.trim()),
+        authToken: encryptToken(authToken),
+        refreshToken: encryptToken(refreshToken),
         updatedAt: new Date(),
       })
       .onConflictDoUpdate({
         target: mangoCredentials.userId,
         set: {
-          email: encryptToken(email.trim()),
-          password: encryptToken(password.trim()),
+          authToken: encryptToken(authToken),
+          refreshToken: encryptToken(refreshToken),
           updatedAt: new Date(),
         },
       });
     res.status(204).send();
   } catch (err) {
-    req.log.error({ err }, "Failed to store Mango Office credentials");
+    req.log.error({ err }, "Failed to store Mango Office token");
     res.status(500).json({ error: "Internal server error" });
   }
 });
@@ -67,7 +70,7 @@ router.delete("/token", requireAuth, async (req: any, res): Promise<void> => {
     await db.delete(mangoCredentials).where(eq(mangoCredentials.userId, req.userId));
     res.status(204).send();
   } catch (err) {
-    req.log.error({ err }, "Failed to delete Mango Office credentials");
+    req.log.error({ err }, "Failed to delete Mango Office token");
     res.status(500).json({ error: "Internal server error" });
   }
 });
@@ -83,11 +86,13 @@ router.get("/kpi", requireAuth, async (req: any, res): Promise<void> => {
       res.status(404).json({ error: "token_not_configured" });
       return;
     }
-    const kpi = await getMangoKpi(credential.email, credential.password);
+    const kpi = await getMangoKpi(credential.authToken, credential.refreshToken, {
+      userId: req.userId,
+    });
     res.json(kpi);
   } catch (err) {
     if (err instanceof MangoAuthError) {
-      res.status(401).json({ error: "auth_failed", message: err.message });
+      res.status(401).json({ error: "token_expired", message: err.message });
       return;
     }
     if (err instanceof MangoKpiUnavailableError) {
