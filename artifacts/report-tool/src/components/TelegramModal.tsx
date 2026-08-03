@@ -117,25 +117,26 @@ export default function TelegramModal({ open, onClose, previewText }: Props) {
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center">
-      <div className="absolute inset-0 bg-black/70 backdrop-blur-sm" onClick={onClose} />
-      <div className="relative z-10 bg-card border border-border w-full max-w-md mx-4 shadow-2xl">
-        <div className="flex items-center justify-between px-4 py-3 border-b border-border">
-          <span className="text-[11px] font-bold uppercase tracking-widest text-foreground">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+      <div className="absolute inset-0 bg-black/60 backdrop-blur-xl" onClick={onClose} />
+      <div className="relative z-10 glass rounded-[24px] w-full max-w-md shadow-2xl overflow-hidden">
+        <div className="absolute -top-24 -left-24 w-56 h-56 rounded-full opacity-25 pointer-events-none"
+          style={{ background: 'radial-gradient(circle, hsl(210 80% 60% / 0.5), transparent)' }} />
+        <div className="relative flex items-center justify-between px-5 py-4">
+          <span className="text-sm font-bold tracking-tight text-foreground">
             {mode === 'list' ? 'Telegram' : mode === 'add' ? 'Добавить канал' : 'Редактировать канал'}
           </span>
           <button
             onClick={mode === 'list' ? onClose : () => setMode('list')}
-            className="text-muted-foreground hover:text-foreground transition-colors"
+            className="press-sm w-8 h-8 flex items-center justify-center rounded-full bg-white/[0.06] text-muted-foreground hover:text-foreground hover:bg-white/[0.1] transition-colors"
           >
-            <X size={14} />
+            <X size={15} />
           </button>
         </div>
 
-        {/* Must be signed in to use */}
         <Show when="signed-out">
-          <div className="px-4 py-8 text-center">
-            <p className="text-xs text-muted-foreground uppercase tracking-widest">
+          <div className="relative px-5 py-10 text-center">
+            <p className="text-xs text-muted-foreground uppercase tracking-[0.16em]">
               Войдите, чтобы управлять каналами
             </p>
           </div>
@@ -145,55 +146,56 @@ export default function TelegramModal({ open, onClose, previewText }: Props) {
           <>
             {mode === 'list' && (
               <>
-                <div className="divide-y divide-border max-h-72 overflow-y-auto">
+                <div className="relative flex flex-col max-h-72 overflow-y-auto px-3 pb-1">
                   {isLoading && (
-                    <div className="px-4 py-6 text-center text-muted-foreground text-xs uppercase tracking-widest">
+                    <div className="px-3 py-8 text-center text-muted-foreground text-xs uppercase tracking-[0.16em]">
                       Загрузка...
                     </div>
                   )}
                   {!isLoading && channels.length === 0 && (
-                    <div className="px-4 py-6 text-center text-muted-foreground text-xs uppercase tracking-widest">
+                    <div className="px-3 py-8 text-center text-muted-foreground text-xs uppercase tracking-[0.16em]">
                       Каналы не настроены
                     </div>
                   )}
-                  {channels.map((ch) => {
+                  {channels.map((ch, idx) => {
                     const st = sendStatus[ch.id] ?? 'idle';
                     return (
-                      <div key={ch.id} className="flex items-center justify-between px-4 py-3 gap-2">
+                      <div key={ch.id}
+                        className={`flex items-center justify-between px-3 py-3 gap-2 rounded-2xl transition-colors hover:bg-white/[0.04] ${idx === channels.length - 1 ? '' : 'mb-1'}`}>
                         <div className="flex flex-col min-w-0 flex-1">
-                          <span className="text-sm text-foreground truncate">{ch.name}</span>
+                          <span className="text-sm font-medium text-foreground truncate">{ch.name}</span>
                           <span className="text-[10px] text-muted-foreground font-mono">{ch.chatId}</span>
                         </div>
-                        <div className="flex items-center gap-1 flex-shrink-0">
+                        <div className="flex items-center gap-1.5 flex-shrink-0">
                           <button
                             onClick={() => openEdit(ch)}
-                            className="w-7 h-7 flex items-center justify-center text-muted-foreground hover:text-foreground transition-colors"
+                            className="press-sm w-8 h-8 flex items-center justify-center rounded-full bg-white/[0.04] text-muted-foreground hover:text-foreground hover:bg-white/[0.08] transition-colors"
                           >
-                            <Edit2 size={12} />
+                            <Edit2 size={13} />
                           </button>
                           <button
                             onClick={() => handleDelete(ch.id)}
-                            className="w-7 h-7 flex items-center justify-center text-muted-foreground hover:text-destructive transition-colors"
+                            className="press-sm w-8 h-8 flex items-center justify-center rounded-full bg-white/[0.04] text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-colors"
                           >
-                            <Trash2 size={12} />
+                            <Trash2 size={13} />
                           </button>
                           <button
                             onClick={() => handleSend(ch.id)}
                             disabled={st === 'sending'}
-                            className={`w-7 h-7 flex items-center justify-center transition-colors ${
+                            className={`press-spring w-8 h-8 flex items-center justify-center rounded-full transition-colors ${
                               st === 'ok'
-                                ? 'text-green-500'
+                                ? 'bg-green-500/15 text-green-400'
                                 : st === 'err'
-                                ? 'text-destructive'
-                                : 'text-primary hover:text-primary/80'
+                                ? 'bg-destructive/15 text-destructive'
+                                : 'bg-primary/15 text-primary hover:bg-primary/25'
                             }`}
                           >
                             {st === 'ok' ? (
-                              <Check size={12} />
+                              <Check size={13} />
                             ) : st === 'sending' ? (
-                              <div className="w-3 h-3 border border-primary border-t-transparent rounded-full animate-spin" />
+                              <div className="w-3.5 h-3.5 border-2 border-primary border-t-transparent rounded-full animate-spin" />
                             ) : (
-                              <Send size={12} />
+                              <Send size={13} />
                             )}
                           </button>
                         </div>
@@ -201,12 +203,12 @@ export default function TelegramModal({ open, onClose, previewText }: Props) {
                     );
                   })}
                 </div>
-                <div className="p-4 border-t border-border">
+                <div className="relative p-4 pt-3">
                   <button
                     onClick={openAdd}
-                    className="w-full h-9 border border-border text-[11px] font-bold uppercase tracking-widest text-muted-foreground hover:text-foreground hover:border-foreground/30 transition-colors flex items-center justify-center gap-2"
+                    className="press-sm w-full h-11 rounded-full bg-white/[0.05] border border-white/[0.06] text-[12px] font-semibold text-foreground hover:bg-white/[0.08] transition-colors flex items-center justify-center gap-2"
                   >
-                    <Plus size={12} />
+                    <Plus size={14} />
                     Добавить канал
                   </button>
                 </div>
@@ -214,7 +216,7 @@ export default function TelegramModal({ open, onClose, previewText }: Props) {
             )}
 
             {(mode === 'add' || mode === 'edit') && (
-              <div className="p-4 flex flex-col gap-3">
+              <div className="relative p-5 flex flex-col gap-3">
                 <TgField
                   label="Название"
                   value={form.name}
@@ -234,17 +236,18 @@ export default function TelegramModal({ open, onClose, previewText }: Props) {
                   placeholder={mode === 'edit' ? '••••••••' : '1234:abc...'}
                   isSecret
                 />
-                <div className="flex gap-2 pt-1">
+                <div className="flex gap-2.5 pt-2">
                   <button
                     onClick={() => setMode('list')}
-                    className="flex-1 h-9 border border-border text-[11px] font-bold uppercase tracking-widest text-muted-foreground hover:text-foreground transition-colors"
+                    className="press-sm flex-1 h-11 rounded-full bg-white/[0.05] text-[12px] font-semibold text-muted-foreground hover:bg-white/[0.08] hover:text-foreground transition-colors"
                   >
                     Отмена
                   </button>
                   <button
                     onClick={handleSaveChannel}
                     disabled={createChannel.isPending || updateChannel.isPending}
-                    className="flex-1 h-9 bg-primary text-primary-foreground text-[11px] font-bold uppercase tracking-widest hover:opacity-90 transition-opacity disabled:opacity-50"
+                    className="press-spring flex-1 h-11 rounded-full text-[12px] font-bold text-primary-foreground transition-shadow hover:shadow-[0_8px_24px_hsl(var(--primary)/0.4)] disabled:opacity-40"
+                    style={{ background: 'linear-gradient(180deg, hsl(22 100% 56%), hsl(22 100% 44%))' }}
                   >
                     {createChannel.isPending || updateChannel.isPending ? '...' : 'Сохранить'}
                   </button>
@@ -268,8 +271,8 @@ function TgField({
   isSecret?: boolean;
 }) {
   return (
-    <div className="flex flex-col gap-1">
-      <label className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">
+    <div className="flex flex-col gap-1.5">
+      <label className="text-[10px] font-bold uppercase tracking-[0.16em] text-muted-foreground px-1">
         {label}
       </label>
       <input
@@ -278,7 +281,7 @@ function TgField({
         onChange={e => onChange(e.target.value)}
         placeholder={placeholder}
         autoComplete={isSecret ? 'new-password' : undefined}
-        className="h-9 bg-input border border-border text-foreground text-sm px-3 outline-none font-mono placeholder:text-muted-foreground/50 focus:border-primary/50 transition-colors"
+        className="h-12 rounded-2xl bg-white/[0.04] border border-white/[0.06] text-foreground text-sm px-4 outline-none font-mono placeholder:text-muted-foreground/40 focus:border-primary/40 focus:bg-white/[0.06] transition-colors"
       />
     </div>
   );

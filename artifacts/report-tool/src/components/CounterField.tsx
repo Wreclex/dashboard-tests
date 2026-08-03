@@ -33,20 +33,26 @@ export default function CounterField({ label, value, onChange, fullWidth }: Coun
   };
 
   return (
-    <div className={`flex flex-col gap-1 ${fullWidth ? 'col-span-2' : ''}`}>
-      <span className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">
-        {label}
-      </span>
-      <div className="flex items-stretch h-10 border border-border bg-card">
+    <div className={`flex flex-col gap-2 ${fullWidth ? 'col-span-2' : ''}`}>
+      <div className="flex items-center gap-1.5 px-1">
+        <span className="w-1.5 h-1.5 rounded-full bg-primary shadow-[0_0_8px_2px_hsl(var(--primary)/0.5)]" />
+        <span className="text-[10px] font-bold uppercase tracking-[0.18em] text-muted-foreground">
+          {label}
+        </span>
+      </div>
+      <div className="glass rounded-[18px] flex items-stretch h-16 px-2.5 py-2 relative overflow-hidden">
+        {/* subtle accent glow */}
+        <div className="absolute inset-0 pointer-events-none opacity-60"
+          style={{ background: 'radial-gradient(80% 120% at 50% 100%, hsl(var(--primary)/0.08), transparent)' }} />
         <button
           type="button"
           onClick={decrement}
-          className="w-10 flex items-center justify-center text-muted-foreground hover:text-foreground hover:bg-white/5 transition-colors text-lg font-light select-none flex-shrink-0"
+          className="press-spring relative w-11 h-11 my-auto flex items-center justify-center rounded-full bg-white/[0.06] text-foreground/80 hover:bg-white/[0.1] hover:text-primary text-xl font-medium select-none flex-shrink-0 shadow-[0_2px_8px_rgba(0,0,0,0.3)]"
           aria-label={`Уменьшить ${label}`}
         >
-          −
+          <span className="leading-none -mt-0.5">−</span>
         </button>
-        <div className="flex-1 flex items-center justify-center border-x border-border">
+        <div className="flex-1 flex items-center justify-center relative">
           {editing ? (
             <input
               ref={inputRef}
@@ -55,13 +61,13 @@ export default function CounterField({ label, value, onChange, fullWidth }: Coun
               onChange={e => setInputVal(e.target.value)}
               onBlur={commitEdit}
               onKeyDown={handleKey}
-              className="w-full text-center bg-transparent text-foreground text-sm font-mono outline-none"
+              className="w-full text-center bg-transparent text-foreground text-3xl font-bold outline-none tabular-nums tracking-tight"
               min={0}
             />
           ) : (
             <span
               onClick={startEdit}
-              className="text-sm font-mono text-foreground cursor-pointer select-none w-full text-center"
+              className="text-3xl font-bold text-foreground cursor-pointer select-none tabular-nums tracking-tight"
             >
               {value}
             </span>
@@ -70,10 +76,10 @@ export default function CounterField({ label, value, onChange, fullWidth }: Coun
         <button
           type="button"
           onClick={increment}
-          className="w-10 flex items-center justify-center text-muted-foreground hover:text-foreground hover:bg-white/5 transition-colors text-lg font-light select-none flex-shrink-0"
+          className="press-spring relative w-11 h-11 my-auto flex items-center justify-center rounded-full bg-primary/15 text-primary hover:bg-primary/25 text-xl font-medium select-none flex-shrink-0 shadow-[0_2px_12px_hsl(var(--primary)/0.25)]"
           aria-label={`Увеличить ${label}`}
         >
-          +
+          <span className="leading-none -mt-0.5">+</span>
         </button>
       </div>
     </div>

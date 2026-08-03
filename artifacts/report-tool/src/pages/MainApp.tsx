@@ -73,40 +73,73 @@ export default function MainApp() {
 
   const handleSignOut = () => signOut({ redirectUrl: basePath || '/' });
 
+  const initials = (() => {
+    const fn = user?.firstName ?? '';
+    const ln = user?.lastName ?? '';
+    const name = (fn + ' ' + ln).trim();
+    if (name) return name.split(' ').map(s => s[0]).slice(0, 2).join('').toUpperCase();
+    const email = user?.emailAddresses?.[0]?.emailAddress ?? '';
+    return email.slice(0, 2).toUpperCase();
+  })();
+
+  const userName = user?.firstName || user?.emailAddresses?.[0]?.emailAddress;
+
   return (
-    <div className="min-h-screen bg-background flex flex-col">
-      {/* Ambient glow */}
+    <div className="min-h-[100dvh] bg-background flex flex-col relative overflow-hidden">
+      {/* Multi-stop radial gradient depth — deep purple/blue nodes */}
       <div className="fixed inset-0 pointer-events-none overflow-hidden">
-        <div className="absolute -top-32 -left-32 w-96 h-96 rounded-full opacity-[0.08]"
-          style={{ background: 'radial-gradient(circle, #e87c2a, transparent)' }} />
-        <div className="absolute -bottom-32 -right-32 w-96 h-96 rounded-full opacity-[0.05]"
-          style={{ background: 'radial-gradient(circle, #e87c2a, transparent)' }} />
+        <div className="absolute top-[-15%] left-[-10%] w-[55vw] h-[55vw] rounded-full opacity-[0.35]"
+          style={{ background: 'radial-gradient(circle, hsl(270 70% 50% / 0.5), transparent 65%)' }} />
+        <div className="absolute top-[20%] right-[-15%] w-[50vw] h-[50vw] rounded-full opacity-[0.3]"
+          style={{ background: 'radial-gradient(circle, hsl(220 80% 55% / 0.45), transparent 65%)' }} />
+        <div className="absolute bottom-[-20%] left-[20%] w-[60vw] h-[60vw] rounded-full opacity-[0.28]"
+          style={{ background: 'radial-gradient(circle, hsl(22 100% 50% / 0.35), transparent 70%)' }} />
+        <div className="absolute bottom-[10%] right-[-10%] w-[45vw] h-[45vw] rounded-full opacity-[0.22]"
+          style={{ background: 'radial-gradient(circle, hsl(280 60% 45% / 0.4), transparent 70%)' }} />
       </div>
 
-      {/* Top bar */}
-      <div className="relative z-10 flex items-center justify-between px-4 py-2 border-b border-border">
-        <span className="text-[11px] font-bold uppercase tracking-[0.2em] text-primary">
-          Report Tool
-        </span>
-        <div className="flex items-center gap-3">
+      {/* iOS-style blurred nav bar */}
+      <div className="glass-nav relative z-20 flex items-center justify-between px-5 py-3">
+        <div className="flex items-center gap-2.5">
+          <div className="w-7 h-7 rounded-[9px] flex items-center justify-center shadow-[0_4px_14px_hsl(var(--primary)/0.45)]"
+            style={{ background: 'linear-gradient(180deg, hsl(22 100% 56%), hsl(22 100% 44%))' }}>
+            <span className="text-[11px] font-black text-primary-foreground tracking-tight">R</span>
+          </div>
+          <span className="text-[15px] font-bold tracking-tight text-foreground">
+            Report Tool
+          </span>
+        </div>
+        <div className="flex items-center gap-2.5">
           <Show when="signed-in">
-            <span className="text-[11px] text-muted-foreground uppercase tracking-widest truncate max-w-[180px]">
-              {user?.firstName || user?.emailAddresses?.[0]?.emailAddress}
-            </span>
-            <button
-              onClick={handleSignOut}
-              className="flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-widest text-muted-foreground hover:text-foreground transition-colors"
-            >
-              <LogOut size={11} />
-              Выйти
-            </button>
+            <div className="flex items-center gap-2">
+              <div className="hidden sm:flex flex-col items-end leading-tight">
+                <span className="text-[12px] font-semibold text-foreground/90 truncate max-w-[160px]">
+                  {userName}
+                </span>
+                <span className="text-[9px] text-muted-foreground uppercase tracking-[0.16em]">
+                  Смена
+                </span>
+              </div>
+              <div className="w-9 h-9 rounded-full flex items-center justify-center text-[11px] font-bold text-primary-foreground border border-white/10 shadow-[0_2px_10px_rgba(0,0,0,0.4)]"
+                style={{ background: 'linear-gradient(180deg, hsl(22 100% 56%), hsl(22 100% 44%))' }}>
+                {initials}
+              </div>
+              <button
+                onClick={handleSignOut}
+                className="press-sm flex items-center gap-1.5 h-9 px-3 rounded-full bg-white/[0.06] text-[11px] font-semibold text-muted-foreground hover:text-foreground hover:bg-white/[0.1] transition-colors"
+              >
+                <LogOut size={12} />
+                <span className="hidden sm:inline">Выйти</span>
+              </button>
+            </div>
           </Show>
           <Show when="signed-out">
             <button
               onClick={() => setLocation('/sign-in')}
-              className="flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-widest text-muted-foreground hover:text-primary transition-colors"
+              className="press-sm flex items-center gap-1.5 h-9 px-4 rounded-full text-[11px] font-bold text-primary-foreground shadow-[0_4px_14px_hsl(var(--primary)/0.4)]"
+              style={{ background: 'linear-gradient(180deg, hsl(22 100% 56%), hsl(22 100% 44%))' }}
             >
-              <LogIn size={11} />
+              <LogIn size={12} />
               Войти
             </button>
           </Show>
@@ -114,51 +147,60 @@ export default function MainApp() {
       </div>
 
       {/* Main content */}
-      <div className="relative z-10 flex-1 flex items-start justify-center p-4 pt-6">
-        <div className="w-full max-w-[960px]">
-          {/* Tab bar */}
-          <div className="flex border-b border-border">
-            {TABS.map((t, i) => (
-              <button
-                key={t}
-                onClick={() => setTab(i)}
-                className={`px-6 py-3 text-[11px] font-bold uppercase tracking-widest transition-colors relative ${
-                  tab === i
-                    ? 'text-primary'
-                    : 'text-muted-foreground hover:text-foreground'
-                }`}
-              >
-                {t}
-                {tab === i && (
-                  <span className="absolute bottom-0 left-0 right-0 h-[2px] bg-primary" />
-                )}
-              </button>
-            ))}
+      <div className="relative z-10 flex-1 flex items-start justify-center p-4 pt-6 pb-8">
+        <div className="w-full max-w-[980px] flex flex-col gap-5">
+          {/* iOS-style pill segmented control */}
+          <div className="flex justify-center">
+            <div className="glass-pill rounded-full p-1 flex relative">
+              {TABS.map((t, i) => (
+                <button
+                  key={t}
+                  onClick={() => setTab(i)}
+                  className="relative px-5 sm:px-7 py-2 text-[11px] font-bold uppercase tracking-[0.12em] transition-colors duration-300 rounded-full z-10"
+                  style={{ color: tab === i ? 'hsl(0 0% 100%)' : 'hsl(240 8% 62%)' }}
+                >
+                  {t}
+                </button>
+              ))}
+              {/* animated active indicator */}
+              <div
+                className="absolute top-1 bottom-1 rounded-full transition-all duration-[400ms] z-0"
+                style={{
+                  left: `calc(${tab * (100 / TABS.length)}% + 4px)`,
+                  width: `calc(${100 / TABS.length}% - 8px)`,
+                  background: 'linear-gradient(180deg, hsl(22 100% 56%), hsl(22 100% 46%))',
+                  boxShadow: '0 4px 16px hsl(22 100% 50% / 0.5), 0 1px 0 0 hsl(0 0% 100% / 0.2) inset',
+                }}
+              />
+            </div>
           </div>
 
-          {/* Two-panel layout */}
-          <div className="flex flex-col md:flex-row gap-0 border border-t-0 border-border">
+          {/* Two-panel floating glass cards */}
+          <div className="flex flex-col md:flex-row gap-5">
             {/* Left: Input panel */}
-            <div className="flex-[3] p-5 border-r border-border min-w-0">
-              {/* Main counters */}
+            <div className="glass rounded-[20px] p-5 flex-[3] min-w-0">
+              {/* Main counters — bold section title with accent line */}
               <div className="mb-5">
-                <div className="flex items-center justify-between mb-3">
-                  <p className="text-[9px] font-bold uppercase tracking-[0.2em] text-muted-foreground/60">
-                    Основные показатели
-                  </p>
+                <div className="flex items-center justify-between mb-4">
+                  <div className="flex items-center gap-2.5">
+                    <div className="w-1 h-5 rounded-full bg-primary shadow-[0_0_10px_2px_hsl(var(--primary)/0.5)]" />
+                    <p className="text-[13px] font-bold tracking-tight text-foreground">
+                      Основные показатели
+                    </p>
+                  </div>
                   <Show when="signed-in">
                     <button
                       onClick={handleSyncSheet}
                       disabled={syncStatus === 'loading'}
-                      className={`flex items-center gap-1 text-[9px] font-bold uppercase tracking-widest transition-colors ${
+                      className={`press-sm flex items-center gap-1.5 h-7 px-3 rounded-full text-[10px] font-bold uppercase tracking-[0.14em] transition-colors ${
                         syncStatus === 'ok'
-                          ? 'text-green-500'
+                          ? 'bg-green-500/15 text-green-400'
                           : syncStatus === 'err'
-                          ? 'text-destructive'
-                          : 'text-muted-foreground/60 hover:text-primary'
+                          ? 'bg-destructive/15 text-destructive'
+                          : 'bg-white/[0.05] text-muted-foreground hover:text-primary hover:bg-primary/10'
                       }`}
                     >
-                      <RefreshCw size={9} className={syncStatus === 'loading' ? 'animate-spin' : ''} />
+                      <RefreshCw size={11} className={syncStatus === 'loading' ? 'animate-spin' : ''} />
                       {syncStatus === 'ok' ? 'Синхр.' : syncStatus === 'err' ? 'Ошибка' : 'Sheets'}
                     </button>
                   </Show>
@@ -174,9 +216,12 @@ export default function MainApp() {
 
               {/* Timings */}
               <div>
-                <p className="text-[9px] font-bold uppercase tracking-[0.2em] text-muted-foreground/60 mb-3">
-                  Тайминги и коэффициенты
-                </p>
+                <div className="flex items-center gap-2.5 mb-4">
+                  <div className="w-1 h-5 rounded-full bg-primary/70 shadow-[0_0_10px_2px_hsl(var(--primary)/0.35)]" />
+                  <p className="text-[13px] font-bold tracking-tight text-foreground">
+                    Тайминги и коэффициенты
+                  </p>
+                </div>
                 <div className="grid grid-cols-2 gap-3">
                   <TimeInput
                     label="Трафик (план)"
@@ -226,12 +271,21 @@ export default function MainApp() {
                 <div className="mt-5">
                   <button
                     onClick={() => updateField('financesEnabled', !state.financesEnabled)}
-                    className="flex items-center gap-2 text-[9px] font-bold uppercase tracking-[0.2em] text-muted-foreground/60 hover:text-muted-foreground transition-colors mb-3"
+                    className="flex items-center gap-2.5 mb-4 press-sm transition-transform"
                   >
-                    <span className={`w-3 h-3 border ${state.financesEnabled ? 'bg-primary border-primary' : 'border-border'} flex items-center justify-center flex-shrink-0`}>
-                      {state.financesEnabled && <Check size={8} className="text-primary-foreground" />}
+                    <span className={`w-5 h-5 rounded-md flex items-center justify-center flex-shrink-0 transition-all ${
+                      state.financesEnabled
+                        ? 'bg-primary shadow-[0_2px_12px_hsl(var(--primary)/0.5)]'
+                        : 'bg-white/[0.06] border border-white/[0.08]'
+                    }`}>
+                      {state.financesEnabled && <Check size={12} className="text-primary-foreground" />}
                     </span>
-                    Финансы
+                    <div className="flex items-center gap-2.5">
+                      <div className="w-1 h-5 rounded-full bg-primary/50" />
+                      <p className="text-[13px] font-bold tracking-tight text-foreground">
+                        Финансы
+                      </p>
+                    </div>
                   </button>
 
                   {state.financesEnabled && (
@@ -239,10 +293,14 @@ export default function MainApp() {
                       <MoneyField label="Поступления" value={state.postupleniya} onChange={v => updateField('postupleniya', v)} fullWidth />
                       <MoneyField label="Итого факт" value={state.itogoFact} onChange={v => updateField('itogoFact', v)} />
                       <MoneyField label="Итого план" value={state.itogoPlan} onChange={v => updateField('itogoPlan', v)} />
-                      <div className="flex flex-col gap-1">
-                        <span className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">% выполнения</span>
-                        <div className="h-10 border border-border bg-card flex items-center justify-center">
-                          <span className="font-mono text-sm text-foreground">{state.vypolnenie}%</span>
+                      <div className="flex flex-col gap-2">
+                        <span className="text-[10px] font-bold uppercase tracking-[0.18em] text-muted-foreground px-1">
+                          % выполнения
+                        </span>
+                        <div className="glass rounded-[18px] h-14 flex items-center justify-center relative overflow-hidden">
+                          <div className="absolute inset-0 opacity-50"
+                            style={{ background: 'radial-gradient(70% 120% at 50% 100%, hsl(var(--primary)/0.12), transparent)' }} />
+                          <span className="relative font-mono text-base font-bold text-primary tabular-nums">{state.vypolnenie}%</span>
                         </div>
                       </div>
                     </div>
@@ -252,44 +310,44 @@ export default function MainApp() {
             </div>
 
             {/* Right: Preview panel */}
-            <div className="flex-[2] flex flex-col min-w-0">
-              {/* Toolbar */}
-              <div className="flex items-center gap-0 border-b border-border px-3 py-2">
+            <div className="glass rounded-[20px] flex-[2] flex flex-col min-w-0 overflow-hidden">
+              {/* Rounded pill toolbar */}
+              <div className="flex items-center gap-1.5 p-3 border-b border-white/[0.05] flex-wrap">
                 <button
                   onClick={() => setPreviewActive(p => !p)}
-                  className="flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-widest text-muted-foreground hover:text-primary transition-colors px-2 py-1"
+                  className={`press-sm flex items-center gap-1.5 h-8 px-3 rounded-full text-[10px] font-bold uppercase tracking-[0.14em] transition-colors ${
+                    previewActive
+                      ? 'bg-green-500/15 text-green-400'
+                      : 'bg-white/[0.05] text-muted-foreground hover:text-foreground'
+                  }`}
                 >
-                  <span className={`w-2 h-2 rounded-full ${previewActive ? 'bg-green-500' : 'bg-muted'}`} />
+                  <span className={`w-1.5 h-1.5 rounded-full ${previewActive ? 'bg-green-400 shadow-[0_0_6px_2px_hsl(140_60%_50%/0.5)]' : 'bg-muted-foreground/50'}`} />
                   Превью
                 </button>
-                <span className="text-border/40 mx-1">|</span>
                 <button
                   onClick={() => setTgOpen(true)}
-                  className="flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-widest text-muted-foreground hover:text-primary transition-colors px-2 py-1"
+                  className="press-sm flex items-center gap-1.5 h-8 px-3 rounded-full text-[10px] font-bold uppercase tracking-[0.14em] bg-white/[0.05] text-muted-foreground hover:text-primary hover:bg-primary/10 transition-colors"
                 >
                   <Send size={11} />
                   TG
                 </button>
-                <span className="text-border/40 mx-1">|</span>
                 <button
                   onClick={() => setSigOpen(true)}
-                  className="flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-widest text-muted-foreground hover:text-primary transition-colors px-2 py-1"
+                  className="press-sm flex items-center gap-1.5 h-8 px-3 rounded-full text-[10px] font-bold uppercase tracking-[0.14em] bg-white/[0.05] text-muted-foreground hover:text-primary hover:bg-primary/10 transition-colors"
                 >
                   <Settings size={11} />
                   Подпись
                 </button>
-                <span className="text-border/40 mx-1">|</span>
                 <button
                   onClick={() => setDefaultsOpen(true)}
-                  className="flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-widest text-muted-foreground hover:text-primary transition-colors px-2 py-1"
+                  className="press-sm flex items-center gap-1.5 h-8 px-3 rounded-full text-[10px] font-bold uppercase tracking-[0.14em] bg-white/[0.05] text-muted-foreground hover:text-primary hover:bg-primary/10 transition-colors"
                 >
                   <SlidersHorizontal size={11} />
                   Умолч.
                 </button>
-                <span className="text-border/40 mx-1">|</span>
                 <button
                   onClick={resetState}
-                  className="flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-widest text-muted-foreground hover:text-foreground transition-colors px-2 py-1"
+                  className="press-sm flex items-center gap-1.5 h-8 px-3 rounded-full text-[10px] font-bold uppercase tracking-[0.14em] bg-white/[0.05] text-muted-foreground hover:text-foreground hover:bg-white/[0.08] transition-colors ml-auto"
                 >
                   <RotateCcw size={11} />
                   Сбросить
@@ -299,33 +357,39 @@ export default function MainApp() {
               {/* Preview text */}
               <div className="flex-1 p-4 min-h-[220px]">
                 {previewActive ? (
-                  <pre className="font-mono text-xs text-foreground whitespace-pre-wrap leading-relaxed">
+                  <pre className="font-mono text-xs text-foreground/90 whitespace-pre-wrap leading-relaxed">
                     {previewText}
                   </pre>
                 ) : (
-                  <div className="flex items-center justify-center h-full text-muted-foreground/40 text-[10px] uppercase tracking-widest">
+                  <div className="flex items-center justify-center h-full text-muted-foreground/40 text-[10px] uppercase tracking-[0.18em]">
                     Превью отключено
                   </div>
                 )}
               </div>
 
-              {/* Copy button */}
-              <button
-                onClick={handleCopy}
-                className="flex items-center justify-center gap-2 h-11 bg-card hover:bg-card/80 border-t border-border text-[11px] font-bold uppercase tracking-widest text-muted-foreground hover:text-foreground transition-all"
-              >
-                {copied ? (
-                  <>
-                    <Check size={12} className="text-green-500" />
-                    <span className="text-green-500">Скопировано!</span>
-                  </>
-                ) : (
-                  <>
-                    <Copy size={12} />
-                    Копировать
-                  </>
-                )}
-              </button>
+              {/* Copy button — full-width pill with gradient */}
+              <div className="p-3 pt-0">
+                <button
+                  onClick={handleCopy}
+                  className="press-spring w-full flex items-center justify-center gap-2 h-12 rounded-2xl text-[12px] font-bold uppercase tracking-[0.14em] transition-shadow"
+                  style={copied
+                    ? { background: 'linear-gradient(180deg, hsl(140 60% 45%), hsl(140 60% 35%))', color: 'hsl(0 0% 100%)' }
+                    : { background: 'linear-gradient(180deg, hsl(22 100% 56%), hsl(22 100% 44%))', color: 'hsl(0 0% 100%)', boxShadow: '0 6px 20px hsl(22 100% 50% / 0.35)' }
+                  }
+                >
+                  {copied ? (
+                    <>
+                      <Check size={14} />
+                      Скопировано!
+                    </>
+                  ) : (
+                    <>
+                      <Copy size={14} />
+                      Копировать
+                    </>
+                  )}
+                </button>
+              </div>
             </div>
           </div>
         </div>
@@ -363,15 +427,21 @@ function NumberField({ label, value, onChange }: { label: string; value: number;
     setEditing(false);
   };
   return (
-    <div className="flex flex-col gap-1">
-      <span className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">{label}</span>
-      <div className="h-10 border border-border bg-card flex items-center px-3 cursor-pointer" onClick={startEdit}>
+    <div className="flex flex-col gap-2">
+      <div className="flex items-center gap-1.5 px-1">
+        <span className="w-1.5 h-1.5 rounded-full bg-primary/70 shadow-[0_0_8px_2px_hsl(var(--primary)/0.35)]" />
+        <span className="text-[10px] font-bold uppercase tracking-[0.18em] text-muted-foreground">{label}</span>
+      </div>
+      <div className="glass rounded-[18px] h-14 flex items-center px-4 cursor-pointer press-sm relative overflow-hidden"
+        onClick={startEdit}>
+        <div className="absolute inset-0 pointer-events-none opacity-50"
+          style={{ background: 'radial-gradient(70% 120% at 50% 100%, hsl(210 80% 60% / 0.06), transparent)' }} />
         {editing ? (
           <input autoFocus type="number" value={val} onChange={e => setVal(e.target.value)}
             onBlur={commit} onKeyDown={e => { if (e.key === 'Enter') commit(); if (e.key === 'Escape') setEditing(false); }}
-            className="w-full bg-transparent text-foreground font-mono text-sm outline-none" />
+            className="relative w-full bg-transparent text-foreground text-lg font-semibold outline-none text-center font-mono" />
         ) : (
-          <span className="font-mono text-sm text-foreground w-full text-center">{value}</span>
+          <span className="relative font-mono text-lg font-semibold text-foreground w-full text-center tabular-nums">{value}</span>
         )}
       </div>
     </div>
@@ -388,15 +458,23 @@ function MoneyField({ label, value, onChange, fullWidth }: { label: string; valu
     setEditing(false);
   };
   return (
-    <div className={`flex flex-col gap-1 ${fullWidth ? 'col-span-2' : ''}`}>
-      <span className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">{label}</span>
-      <div className="h-10 border border-border bg-card flex items-center px-3 cursor-pointer" onClick={startEdit}>
+    <div className={`flex flex-col gap-2 ${fullWidth ? 'col-span-2' : ''}`}>
+      <div className="flex items-center gap-1.5 px-1">
+        <span className="w-1.5 h-1.5 rounded-full bg-primary/70 shadow-[0_0_8px_2px_hsl(var(--primary)/0.35)]" />
+        <span className="text-[10px] font-bold uppercase tracking-[0.18em] text-muted-foreground">{label}</span>
+      </div>
+      <div className="glass rounded-[18px] h-14 flex items-center px-4 cursor-pointer press-sm relative overflow-hidden"
+        onClick={startEdit}>
+        <div className="absolute inset-0 pointer-events-none opacity-50"
+          style={{ background: 'radial-gradient(70% 120% at 50% 100%, hsl(140 60% 50% / 0.05), transparent)' }} />
         {editing ? (
           <input autoFocus type="number" value={val} onChange={e => setVal(e.target.value)}
             onBlur={commit} onKeyDown={e => { if (e.key === 'Enter') commit(); if (e.key === 'Escape') setEditing(false); }}
-            className="w-full bg-transparent text-foreground font-mono text-sm outline-none" />
+            className="relative w-full bg-transparent text-foreground text-lg font-semibold outline-none text-center font-mono" />
         ) : (
-          <span className="font-mono text-sm text-foreground w-full text-center">{value === 0 ? '0' : value.toLocaleString('ru-RU')}</span>
+          <span className="relative font-mono text-lg font-semibold text-foreground w-full text-center tabular-nums">
+            {value === 0 ? '0' : value.toLocaleString('ru-RU')}
+          </span>
         )}
       </div>
     </div>

@@ -1,3 +1,4 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap');
 @layer theme, base, clerk, components, utilities;
 @import 'tailwindcss';
 @import 'tw-animate-css';
@@ -55,80 +56,86 @@
   --font-serif: var(--app-font-serif);
   --font-mono: var(--app-font-mono);
 
-  --radius-sm: calc(var(--radius) - 4px);
-  --radius-md: calc(var(--radius) - 2px);
+  --radius-sm: calc(var(--radius) - 8px);
+  --radius-md: calc(var(--radius) - 4px);
   --radius-lg: var(--radius);
-  --radius-xl: calc(var(--radius) + 4px);
+  --radius-xl: calc(var(--radius) + 6px);
 }
 
-/* DARK THEME — always dark, this app never uses light mode */
+/* iOS 17 DARK THEME — deep layered blue-black, vibrant orange accent */
 :root {
   --button-outline: rgba(255, 255, 255, 0.1);
-  --badge-outline: rgba(255, 255, 255, 0.05);
+  --badge-outline: rgba(255, 255, 255, 0.06);
   --opaque-button-border-intensity: 9;
-  --elevate-1: rgba(255, 255, 255, 0.04);
-  --elevate-2: rgba(255, 255, 255, 0.09);
+  --elevate-1: rgba(255, 255, 255, 0.05);
+  --elevate-2: rgba(255, 255, 255, 0.1);
 
-  --background: 0 0% 6%;         /* #0f0f0f */
-  --foreground: 0 0% 87%;        /* #dedede */
-  --border: 0 0% 17%;            /* #2b2b2b */
+  /* Deep blue-black background (#0A0A12) */
+  --background: 240 25% 4%;
+  --foreground: 240 10% 92%;
 
-  --card: 0 0% 10%;              /* #1a1a1a */
-  --card-foreground: 0 0% 87%;
-  --card-border: 0 0% 17%;
+  /* Near-invisible borders — separation via fill, not lines */
+  --border: 240 15% 18%;
 
-  --popover: 0 0% 10%;
-  --popover-foreground: 0 0% 87%;
-  --popover-border: 0 0% 17%;
+  /* Layered cards with subtle blue/purple tint (iOS grouped bg) */
+  --card: 240 20% 10%;
+  --card-foreground: 240 10% 92%;
+  --card-border: 240 15% 16%;
 
-  --primary: 26 80% 54%;         /* #e87c2a orange */
-  --primary-foreground: 0 0% 6%;
+  --popover: 240 22% 9%;
+  --popover-foreground: 240 10% 92%;
+  --popover-border: 240 15% 16%;
 
-  --secondary: 0 0% 13%;         /* #212121 */
-  --secondary-foreground: 0 0% 87%;
+  /* Vibrant saturated iOS orange (#FF6B00) */
+  --primary: 22 100% 50%;
+  --primary-foreground: 0 0% 100%;
 
-  --muted: 0 0% 12%;             /* #1f1f1f */
-  --muted-foreground: 0 0% 53%;  /* #878787 */
+  --secondary: 240 18% 14%;
+  --secondary-foreground: 240 10% 90%;
 
-  --accent: 26 80% 54%;
-  --accent-foreground: 0 0% 6%;
+  --muted: 240 16% 13%;
+  --muted-foreground: 240 8% 62%;
 
-  --destructive: 0 75% 45%;
-  --destructive-foreground: 0 0% 95%;
+  --accent: 22 100% 50%;
+  --accent-foreground: 0 0% 100%;
 
-  --input: 0 0% 14%;             /* #242424 */
-  --ring: 26 80% 54%;
+  --destructive: 0 84% 60%;
+  --destructive-foreground: 0 0% 100%;
 
-  --sidebar: 0 0% 8%;
-  --sidebar-foreground: 0 0% 87%;
-  --sidebar-border: 0 0% 17%;
-  --sidebar-primary: 26 80% 54%;
-  --sidebar-primary-foreground: 0 0% 6%;
-  --sidebar-accent: 0 0% 13%;
-  --sidebar-accent-foreground: 0 0% 87%;
-  --sidebar-ring: 26 80% 54%;
+  --input: 240 18% 13%;
+  --ring: 22 100% 50%;
 
-  --chart-1: 26 80% 54%;
-  --chart-2: 200 70% 50%;
-  --chart-3: 120 60% 45%;
-  --chart-4: 280 65% 55%;
-  --chart-5: 50 85% 50%;
+  --sidebar: 240 22% 7%;
+  --sidebar-foreground: 240 10% 92%;
+  --sidebar-border: 240 15% 16%;
+  --sidebar-primary: 22 100% 50%;
+  --sidebar-primary-foreground: 0 0% 100%;
+  --sidebar-accent: 240 18% 14%;
+  --sidebar-accent-foreground: 240 10% 92%;
+  --sidebar-ring: 22 100% 50%;
 
-  --app-font-sans: 'Inter', sans-serif;
+  --chart-1: 22 100% 50%;
+  --chart-2: 210 80% 60%;
+  --chart-3: 150 60% 50%;
+  --chart-4: 270 70% 65%;
+  --chart-5: 50 90% 58%;
+
+  --app-font-sans: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
   --app-font-serif: Georgia, serif;
-  --app-font-mono: 'Courier New', Courier, monospace;
-  --radius: 0.25rem;
+  --app-font-mono: 'SF Mono', 'JetBrains Mono', 'Courier New', monospace;
+  --radius: 1rem;
 
-  --shadow-2xs: 0px 1px 0px 0px rgba(0,0,0,0.5);
-  --shadow-xs: 0px 1px 2px 0px rgba(0,0,0,0.5);
-  --shadow-sm: 0px 1px 3px 0px rgba(0,0,0,0.5), 0px 1px 2px -1px rgba(0,0,0,0.5);
-  --shadow: 0px 2px 4px 0px rgba(0,0,0,0.5), 0px 1px 2px -1px rgba(0,0,0,0.5);
-  --shadow-md: 0px 4px 6px -1px rgba(0,0,0,0.5), 0px 2px 4px -1px rgba(0,0,0,0.5);
-  --shadow-lg: 0px 10px 15px -3px rgba(0,0,0,0.6), 0px 4px 6px -2px rgba(0,0,0,0.5);
-  --shadow-xl: 0px 20px 25px -5px rgba(0,0,0,0.7), 0px 8px 10px -5px rgba(0,0,0,0.5);
-  --shadow-2xl: 0px 25px 50px -12px rgba(0,0,0,0.7);
+  /* iOS-style soft, diffuse shadows with colored ambient glow */
+  --shadow-2xs: 0px 1px 2px rgba(0,0,0,0.4);
+  --shadow-xs: 0px 2px 4px rgba(0,0,0,0.4);
+  --shadow-sm: 0px 2px 8px rgba(0,0,0,0.35), 0px 1px 2px rgba(0,0,0,0.3);
+  --shadow: 0px 4px 12px rgba(0,0,0,0.4), 0px 2px 4px rgba(0,0,0,0.3);
+  --shadow-md: 0px 8px 24px rgba(0,0,0,0.45), 0px 4px 8px rgba(0,0,0,0.3);
+  --shadow-lg: 0px 16px 40px rgba(0,0,0,0.5), 0px 8px 16px rgba(0,0,0,0.35);
+  --shadow-xl: 0px 24px 56px rgba(0,0,0,0.55), 0px 12px 24px rgba(0,0,0,0.4);
+  --shadow-2xl: 0px 32px 80px rgba(0,0,0,0.6), 0px 16px 32px rgba(0,0,0,0.45);
 
-  --tracking-normal: 0em;
+  --tracking-normal: -0.01em;
   --spacing: 0.25rem;
 
   --primary-border: hsl(from hsl(var(--primary)) h s calc(l + 9) / alpha);
@@ -146,11 +153,59 @@
   }
   body {
     @apply font-sans antialiased bg-background text-foreground;
+    letter-spacing: -0.01em;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+}
+
+/* iOS 17 glassmorphism utility — layered translucent card with blur + glow */
+.glass {
+  background: linear-gradient(
+    180deg,
+    hsl(240 22% 12% / 0.72),
+    hsl(240 24% 9% / 0.68)
+  );
+  backdrop-filter: blur(24px) saturate(160%);
+  -webkit-backdrop-filter: blur(24px) saturate(160%);
+  border: 1px solid hsl(240 30% 100% / 0.06);
+  box-shadow:
+    0 1px 0 0 hsl(240 30% 100% / 0.05) inset,
+    0 -1px 0 0 hsl(240 30% 0% / 0.3) inset,
+    0 8px 32px -8px hsl(240 40% 2% / 0.7);
+}
+
+.glass-nav {
+  background: hsl(240 25% 6% / 0.72);
+  backdrop-filter: blur(20px) saturate(180%);
+  -webkit-backdrop-filter: blur(20px) saturate(180%);
+  border-bottom: 1px solid hsl(240 30% 100% / 0.06);
+}
+
+.glass-pill {
+  background: hsl(240 22% 14% / 0.6);
+  backdrop-filter: blur(16px) saturate(140%);
+  -webkit-backdrop-filter: blur(16px) saturate(140%);
+  border: 1px solid hsl(240 30% 100% / 0.07);
+}
+
+/* iOS-style spring press animation helper */
+@layer utilities {
+  .press-spring {
+    transition: transform 0.25s cubic-bezier(0.34, 1.56, 0.64, 1),
+                background-color 0.2s ease,
+                box-shadow 0.2s ease;
+  }
+  .press-spring:active {
+    transform: scale(0.9);
+  }
+  .press-sm:active {
+    transform: scale(0.96);
   }
 }
 
 /* Placeholder styling for Clerk inputs on dark backgrounds */
 .cl-formFieldInput::placeholder {
-  color: hsl(0 0% 40%);
+  color: hsl(240 8% 45%);
   opacity: 1;
 }
