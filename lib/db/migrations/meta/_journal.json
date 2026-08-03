@@ -29,6 +29,13 @@
       "when": 1785788000000,
       "tag": "0003_mango_credentials_login",
       "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1785791600000,
+      "tag": "0004_mango_credentials_operator_groups",
+      "breakpoints": true
     }
   ]
 }

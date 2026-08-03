@@ -151,14 +151,14 @@ export const DeleteMangoCredentialsResponse = zod.void()
 
 
 /**
- * @summary Store Mango session tokens pasted from the user's own browser session
+ * @summary Store the Mango jwt_token and operator groups pasted from the user's own browser session
  */
 
 
 
 export const PutMangoTokenBody = zod.object({
-  "token": zod.string().min(1),
-  "refresh": zod.string().optional()
+  "token": zod.string().min(1).describe('RS256 jwt_token from the CCC session localStorage'),
+  "groups": zod.string().optional().describe('Operator group IDs as JSON array or CSV (localStorage <member_id>.operator_groups)')
 })
 
 export const PutMangoTokenResponse = zod.void()

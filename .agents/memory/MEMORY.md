@@ -1,3 +1,3 @@
 - [Google Sheets integration](google-sheets-integration.md) — column mapping for ПЗМ/ПСМ/ПСТЛ/ВСТЛ/ДОЖ counters; sheet "ВОРОНКА", date format DD.MM.YYYY, 5 date cols AC–AG
 - [Scheduled report delivery](scheduled-report-delivery.md) — use persisted due times and token-fenced DB leases for reliable multi-instance Telegram schedules.
-- [Mango auth approach](mango-auth-approach.md) — Mango CCC uses cookie auth, not Bearer headers; store email+password and auto-sign-in via /v2/auth/sign-in.
+- [Mango auth approach](mango-auth-approach.md) — KPI API needs RS256 jwt_token in a form-urlencoded body plus GroupId[]; headless login harvests both, refresh tokens are useless.

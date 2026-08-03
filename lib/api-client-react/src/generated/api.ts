@@ -818,7 +818,7 @@ export const getPutMangoTokenUrl = () => {
 }
 
 /**
- * @summary Store Mango session tokens pasted from the user's own browser session
+ * @summary Store the Mango jwt_token and operator groups pasted from the user's own browser session
  */
 export const putMangoToken = async (mangoTokenInput: MangoTokenInput, options?: Parameters<typeof customFetch>[1]): Promise<void> => {
 
@@ -867,7 +867,7 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
     export type PutMangoTokenMutationError = ErrorType<void>
 
     /**
- * @summary Store Mango session tokens pasted from the user's own browser session
+ * @summary Store the Mango jwt_token and operator groups pasted from the user's own browser session
  */
 export const usePutMangoToken = <TError = ErrorType<void>,
     TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof putMangoToken>>, TError,{data: BodyType<MangoTokenInput>}, TContext>, request?: SecondParameter<typeof customFetch>}

@@ -5,16 +5,30 @@
  * This module has NO I/O dependencies beyond an injectable `FetchFn` parameter
  * so it can be imported directly in tests without the encrypt / logger stack.
  *
- * Protocol discovered from the Mango CCC dashboard bundle, 2026-08
- * (chunk-D5CTCMDK.js / chunk-BWYX5NMI.js):
+ * Protocol verified live against production traffic, 2026-08
+ * (captured from the real CCC browser session and replayed via curl):
  *
  *   Step 1 – POST https://api2.mangotele.com/v2/ccc/reports/oper-kpi2
- *             Body: { date_from, date_until, time_from, time_until, Fields, … }
- *             Response: { key: "<reportKey>" }
+ *             Body: application/x-www-form-urlencoded with
+ *               GroupId[]=<id>          (one entry per operator group; REQUIRED —
+ *                                        without it the report returns 0 rows)
+ *               FromDate / UntilDate    YYYY-MM-DD
+ *               FromTime / UntilTime    HH:MM:SS
+ *               time_zone_iana_id=Europe/Moscow
+ *               time_zone_utc_offset=180
+ *               app=webcov
+ *               outputType=json
+ *               jwt_token=<RS256 JWT>   (the localStorage `jwt_token` — NOT the
+ *                                        HS256 `auth_token`, which api2 rejects
+ *                                        with "Incorrect key for this algorithm")
+ *             Response: HTTP 202 { key: "<reportKey>" }
  *
  *   Step 2 – POST https://api2.mangotele.com/v2/ccc/reports/oper-kpi2/result
- *             Body: { key: "<reportKey>" }
+ *             Body: same form fields plus key=<reportKey>
  *             Response: { data: […rows], grouped: […rows] }
+ *
+ * NOTE: `total-time-external-calls` arrives as an "HH:MM:SS" string
+ * (e.g. "02:11:07"), not as a number of seconds.
  *
  * The Mango dashboard uses a socket.io WebSocket (ccc.mango-office.ru:1443) to
  * be notified when the result is ready, then executes step 2.  Our server-side
@@ -113,10 +127,27 @@ function toFiniteNumber(value: unknown): number | null {
   return null;
 }
 
+/**
+ * Parse a traffic duration to seconds.
+ * Production payloads carry `total-time-external-calls` as "HH:MM:SS"
+ * (e.g. "02:11:07"); hours may exceed 24. Plain numbers / numeric strings
+ * (seconds) are also accepted for resilience.
+ */
+export function parseTrafficToSeconds(value: unknown): number | null {
+  const numeric = toFiniteNumber(value);
+  if (numeric !== null) return numeric;
+  if (typeof value === "string") {
+    // Hours are unbounded (may exceed 24); minutes/seconds must be 0–59.
+    const m = value.trim().match(/^(\d+):([0-5]?\d):([0-5]?\d)$/);
+    if (m) return Number(m[1]) * 3_600 + Number(m[2]) * 60 + Number(m[3]);
+  }
+  return null;
+}
+
 /** Extract KPI from one row using EXACT field names from the bundle. */
 function extractRow(row: MangoRow): MangoKpi | null {
   const calls = toFiniteNumber(row[FIELD_CALLS]);
-  const trafficSeconds = toFiniteNumber(row[FIELD_TRAFFIC]);
+  const trafficSeconds = parseTrafficToSeconds(row[FIELD_TRAFFIC]);
   if (calls === null || trafficSeconds === null) return null;
   if (calls < 0 || trafficSeconds < 0) return null;
   return { calls: Math.round(calls), trafficSeconds: Math.round(trafficSeconds) };
@@ -189,6 +220,29 @@ export function todayMoscow(now = Date.now()): string {
 }
 
 /**
+ * Parse operator group IDs stored as JSON (`[19431874,20165172]`) or CSV
+ * (`19431874,20165172`) text. Returns only positive integers; []
+ * when nothing usable is present.
+ */
+export function parseOperatorGroups(raw: string | null | undefined): number[] {
+  if (!raw) return [];
+  try {
+    const v: unknown = JSON.parse(raw);
+    if (Array.isArray(v)) {
+      return v.filter(
+        (n): n is number => typeof n === "number" && Number.isInteger(n) && n > 0,
+      );
+    }
+  } catch {
+    // Not JSON — fall through to CSV parsing.
+  }
+  return raw
+    .split(",")
+    .map((s) => Number(s.trim()))
+    .filter((n) => Number.isInteger(n) && n > 0);
+}
+
+/**
  * Format a duration in seconds as HH:MM:SS without wrapping at 24 h.
  * (Date.prototype.toISOString wraps at 24 h — this implementation does not.)
  */
@@ -203,11 +257,37 @@ export function formatMangoTraffic(seconds: number): string {
 // ─── Two-step async KPI fetch (no crypto dependency) ─────────────────────────
 
 /**
- * Fetch today's Mango CCC KPI using a raw (already-decrypted) Bearer token.
+ * Build the application/x-www-form-urlencoded body shared by both steps.
+ * `GroupId[]` is REQUIRED — without it the report returns 0 rows.
+ */
+function buildFormBody(
+  jwtToken: string,
+  operatorGroups: number[],
+  extra: Record<string, string> = {},
+): string {
+  const params = new URLSearchParams();
+  for (const g of operatorGroups) params.append("GroupId[]", String(g));
+  const today = todayMoscow();
+  params.set("FromDate", today);
+  params.set("UntilDate", today);
+  params.set("FromTime", "00:00:00");
+  params.set("UntilTime", "23:59:59");
+  params.set("time_zone_iana_id", "Europe/Moscow");
+  params.set("time_zone_utc_offset", "180");
+  params.set("app", "webcov");
+  params.set("outputType", "json");
+  params.set("jwt_token", jwtToken);
+  for (const [k, v] of Object.entries(extra)) params.set(k, v);
+  return params.toString();
+}
+
+/**
+ * Fetch today's Mango CCC KPI using the RS256 `jwt_token` harvested from the
+ * CCC session's localStorage (via headless login or manual paste).
  *
- * Implements the two-step protocol observed in the dashboard bundle:
- *   1. POST oper-kpi2 → receive { key }
- *   2. Poll oper-kpi2/result with { key } until data rows arrive
+ * Implements the two-step protocol verified against production traffic:
+ *   1. POST oper-kpi2 (form body, GroupId[] + jwt_token) → 202 { key }
+ *   2. Poll oper-kpi2/result (same body + key) until data rows arrive
  *
  * The `fetchFn` parameter is injectable for unit tests (pass `fetch` in prod).
  *
@@ -217,6 +297,7 @@ export function formatMangoTraffic(seconds: number): string {
  */
 export async function fetchMangoKpi(
   rawToken: string,
+  operatorGroups: number[],
   fetchFn: FetchFn = fetch,
   pollDelayMs = MANGO_RESULT_POLL_DELAY_MS,
   /**
@@ -229,6 +310,10 @@ export async function fetchMangoKpi(
 ): Promise<MangoKpi> {
   const trimmed = rawToken.trim();
   if (!trimmed) throw new MangoKpiUnavailableError("Mango Office token is empty");
+  const groups = operatorGroups.filter((g) => Number.isFinite(g) && g > 0);
+  if (groups.length === 0) {
+    throw new MangoKpiUnavailableError("Mango operator groups are not configured");
+  }
 
   // Deadline: absolute epoch ms, or +Infinity when no cap requested.
   const deadline =
@@ -252,42 +337,24 @@ export async function fetchMangoKpi(
     return AbortSignal.timeout(effectiveMs);
   }
 
-  // Mango api2 authenticates via the `jwt_token` QUERY PARAMETER (evidence:
-  // the CCC SPA calls e.g. /v2/ccc/timezone/get?jwt_token=...&app=webcov, and
-  // garbage in that param yields a JWT parse error while Bearer is ignored
-  // with a bare 403). Authorization headers are NOT used.
-  const authedUrl = (base: string) =>
-    `${base}?jwt_token=${encodeURIComponent(trimmed)}&app=webcov`;
+  // Mango api2 authenticates via the RS256 `jwt_token` carried INSIDE the
+  // form body (verified against captured production traffic, 2026-08).
+  // Bearer headers are ignored, and the HS256 `auth_token` is rejected
+  // outright ("Incorrect key for this algorithm").
   const apiHeaders = {
-    "Content-Type": "application/json",
+    "Content-Type": "application/x-www-form-urlencoded",
     Accept: "application/json",
     Origin: "https://ccc.mango-office.ru",
     Referer: "https://ccc.mango-office.ru/",
     "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/138.0.0.0 Safari/537.36",
   };
-  const today = todayMoscow();
 
-  const handshakeBody = JSON.stringify({
-    date_from: today,
-    date_until: today,
-    time_from: "00:00:00",
-    time_until: "23:59:59",
-    time_zone_iana_id: "Europe/Moscow",
-    time_zone_utc_offset: 180,
-    records_num: 1000,
-    offset: 0,
-    Language: "ru_RU",
-    personal: true,
-    return: "grouped",
-    outputType: "json",
-    app: "report-tool",
-    Fields: REQUEST_FIELDS,
-  });
+  const handshakeBody = buildFormBody(trimmed, groups);
 
   // ── Step 1: POST to oper-kpi2 ─────────────────────────────────────────────
   let hsRes: Response;
   try {
-    hsRes = await fetchFn(authedUrl(MANGO_KPI_URL), {
+    hsRes = await fetchFn(MANGO_KPI_URL, {
       method: "POST",
       headers: apiHeaders,
       body: handshakeBody,
@@ -338,7 +405,7 @@ export async function fetchMangoKpi(
   }
 
   // ── Step 2: Poll oper-kpi2/result until the report is ready ───────────────
-  const resultBody = JSON.stringify({ key });
+  const resultBody = buildFormBody(trimmed, groups, { key });
 
   for (let attempt = 1; attempt <= MANGO_RESULT_POLL_ATTEMPTS; attempt++) {
     if (attempt > 1) {
@@ -356,7 +423,7 @@ export async function fetchMangoKpi(
     let resRes: Response;
     try {
       // makeSignal() re-evaluates remaining budget immediately before this fetch.
-      resRes = await fetchFn(authedUrl(MANGO_KPI_RESULT_URL), {
+      resRes = await fetchFn(MANGO_KPI_RESULT_URL, {
         method: "POST",
         headers: apiHeaders,
         body: resultBody,

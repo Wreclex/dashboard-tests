@@ -1,22 +1,27 @@
 /**
- * Mango Office KPI entry point — three-tier auth:
+ * Mango Office KPI entry point — two-tier auth:
  *
- * 1. Cached auth_token from the DB (fast path).
- * 2. On 401/403: refresh_token via auth.mango-office.ru/refresh.
- * 3. On refresh failure: full headless-browser re-login with the stored
- *    email + password (mangoBrowserLogin), then retry.
+ * 1. Cached RS256 jwt_token + operator groups from the DB (fast path).
+ * 2. On rejection: full headless-browser re-login with the stored
+ *    email + password (mangoBrowserLogin), harvesting a fresh jwt_token
+ *    and the operator group IDs from localStorage, then retry.
  *
- * New tokens are persisted back to mango_credentials whenever we have a userId.
+ * The legacy refresh_token tier was removed: Mango refresh tokens cannot
+ * mint the RS256 jwt_token that api2.mangotele.com requires (the HS256
+ * auth_token is rejected with "Incorrect key for this algorithm").
+ *
+ * New sessions are persisted back to mango_credentials whenever we have a userId.
  */
 
 import { decryptToken, encryptToken } from "./encrypt.ts";
-import { mangoRefresh, MangoAuthError } from "./mangoAuth.ts";
-import { mangoBrowserLogin } from "./mangoBrowser.ts";
+import { MangoAuthError } from "./mangoAuth.ts";
+import { mangoBrowserLogin, type MangoBrowserSession } from "./mangoBrowser.ts";
 import {
   MANGO_RESULT_POLL_DELAY_MS,
   MangoKpiUnavailableError,
   MangoTokenExpiredError,
   fetchMangoKpi,
+  parseOperatorGroups,
   type MangoKpi,
 } from "./mangoKpiFormat.ts";
 import { db, mangoCredentials } from "@workspace/db";
@@ -29,36 +34,41 @@ export {
   MangoTokenExpiredError,
   fetchMangoKpi,
   formatMangoTraffic,
+  parseOperatorGroups,
   todayMoscow,
   type FetchFn,
 } from "./mangoKpiFormat.ts";
 export type { MangoKpi } from "./mangoKpiFormat.ts";
 export { MangoAuthError } from "./mangoAuth.ts";
 export { mangoBrowserLogin } from "./mangoBrowser.ts";
+export type { MangoBrowserSession } from "./mangoBrowser.ts";
 
 /** Single-flight guard: concurrent KPI calls for one user share one browser login. */
-const loginInFlight = new Map<string, Promise<{ authToken: string; refreshToken: string }>>();
+const loginInFlight = new Map<string, Promise<MangoBrowserSession>>();
 
 export type MangoStoredCredential = {
-  /** Encrypted email, encrypted password, encrypted tokens (or null). */
+  /** Encrypted email, encrypted password, encrypted jwt_token (or null). */
   email: string;
   password: string;
+  /** Encrypted cached RS256 jwt_token; null until first login. */
   authToken: string | null;
+  /** Legacy column — refresh tokens are useless for KPI; kept for schema compat. */
   refreshToken: string | null;
+  /** JSON-encoded number[] of Mango operator group IDs; null until first login. */
+  operatorGroups: string | null;
 };
 
-async function persistTokens(
+async function persistSession(
   userId: string | undefined,
-  authToken: string,
-  refreshToken: string,
+  session: MangoBrowserSession,
 ): Promise<void> {
   if (!userId) return;
   try {
     await db
       .update(mangoCredentials)
       .set({
-        authToken: encryptToken(authToken),
-        refreshToken: encryptToken(refreshToken),
+        authToken: encryptToken(session.jwtToken),
+        operatorGroups: JSON.stringify(session.operatorGroups),
         updatedAt: new Date(),
       })
       .where(eq(mangoCredentials.userId, userId));
@@ -70,6 +80,10 @@ async function persistTokens(
 function decryptPlain(encrypted: string | null): string {
   if (!encrypted) return "";
   return decryptToken(encrypted).trim();
+}
+
+function isAscii(s: string): boolean {
+  return !s.split("").some((c) => c.charCodeAt(0) > 127);
 }
 
 /**
@@ -86,36 +100,24 @@ export async function getMangoKpi(
   const remaining = () =>
     opts?.totalTimeoutMs ? Math.max(0, opts.totalTimeoutMs - (Date.now() - started)) : undefined;
 
-  // ── 1. Cached auth_token ──────────────────────────────────────────────────
-  const cachedAuth = decryptPlain(credential.authToken);
-  if (cachedAuth && !cachedAuth.split("").some((c) => c.charCodeAt(0) > 127)) {
+  // ── 1. Cached RS256 jwt_token + operator groups ───────────────────────────
+  const cachedJwt = decryptPlain(credential.authToken);
+  const cachedGroups = parseOperatorGroups(credential.operatorGroups);
+  if (cachedJwt && cachedGroups.length > 0 && isAscii(cachedJwt)) {
     try {
-      return await fetchMangoKpi(cachedAuth, fetch, MANGO_RESULT_POLL_DELAY_MS, remaining());
-    } catch (err) {
-      if (!(err instanceof MangoTokenExpiredError)) throw err;
-    }
-  }
-
-  // ── 2. Refresh token ──────────────────────────────────────────────────────
-  const refreshToken = decryptPlain(credential.refreshToken);
-  if (refreshToken) {
-    try {
-      const refreshed = await mangoRefresh(refreshToken);
-      await persistTokens(opts?.userId, refreshed.authToken, refreshed.refreshToken);
       return await fetchMangoKpi(
-        refreshed.authToken,
+        cachedJwt,
+        cachedGroups,
         fetch,
         MANGO_RESULT_POLL_DELAY_MS,
         remaining(),
       );
     } catch (err) {
-      if (err instanceof MangoTokenExpiredError) throw err; // fresh token rejected — bail
-      if (!(err instanceof MangoAuthError)) throw err;      // network etc. — bail
-      // Refresh token dead — fall through to browser re-login.
+      if (!(err instanceof MangoTokenExpiredError)) throw err;
     }
   }
 
-  // ── 3. Headless-browser re-login ──────────────────────────────────────────
+  // ── 2. Headless-browser re-login ──────────────────────────────────────────
   const email = decryptPlain(credential.email);
   const password = decryptPlain(credential.password);
   if (!email || !password) {
@@ -135,8 +137,23 @@ export async function getMangoKpi(
     loginInFlight.set(lockKey, loginPromise);
     loginPromise.finally(() => loginInFlight.delete(lockKey)).catch(() => {});
   }
-  const tokens = await loginPromise;
+  const session = await loginPromise;
 
-  await persistTokens(opts?.userId, tokens.authToken, tokens.refreshToken);
-  return fetchMangoKpi(tokens.authToken, fetch, MANGO_RESULT_POLL_DELAY_MS, remaining());
+  await persistSession(opts?.userId, session);
+  try {
+    return await fetchMangoKpi(
+      session.jwtToken,
+      session.operatorGroups,
+      fetch,
+      MANGO_RESULT_POLL_DELAY_MS,
+      remaining(),
+    );
+  } catch (err) {
+    // A freshly harvested session being rejected is an auth-class failure —
+    // classify it so callers return 401 (re-login) instead of a generic 500.
+    if (err instanceof MangoTokenExpiredError) {
+      throw new MangoAuthError("Mango отклонил новую сессию — войдите заново");
+    }
+    throw err;
+  }
 }

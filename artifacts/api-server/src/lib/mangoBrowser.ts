@@ -4,8 +4,15 @@
  * The Mango SSO login (auth.mango-office.ru/sso/login, OAuth PKCE) rejects
  * direct API calls (code 1102), so we drive the real login page with headless
  * Chromium instead: fill email + password, submit, wait for the redirect back
- * to ccc.mango-office.ru, then read auth_token / refresh_token from
- * localStorage — exactly what a human browser session produces.
+ * to ccc.mango-office.ru, then harvest the session from localStorage — exactly
+ * what a human browser session produces:
+ *   jwt_token                      — RS256 JWT accepted by api2.mangotele.com
+ *                                    (TTL ~20 h; the HS256 auth_token is NOT
+ *                                    accepted by the KPI API)
+ *   current_member                 — member id, e.g. "20312007"
+ *   <member_id>.operator_groups    — JSON array of operator group ids,
+ *                                    required by the KPI report endpoint
+ *                                    (0 rows without GroupId[])
  *
  * Selectors verified against the live page (Aug 2026):
  *   input[type="text"]      — login field
@@ -30,7 +37,12 @@ function chromiumPath(): string {
   }
 }
 
-export type MangoBrowserTokens = { authToken: string; refreshToken: string };
+export type MangoBrowserSession = {
+  /** RS256 `jwt_token` — the only token api2.mangotele.com accepts. */
+  jwtToken: string;
+  /** Operator group IDs (GroupId[] report params) from localStorage. */
+  operatorGroups: number[];
+};
 
 /**
  * Log into Mango CCC with email + password and return fresh tokens.
@@ -42,7 +54,7 @@ export async function mangoBrowserLogin(
   email: string,
   password: string,
   timeoutMs: number = LOGIN_TIMEOUT_MS,
-): Promise<MangoBrowserTokens> {
+): Promise<MangoBrowserSession> {
   const browser = await chromium
     .launch({ executablePath: chromiumPath(), args: ["--no-sandbox", "--disable-dev-shm-usage"] })
     .catch((err) => {
@@ -78,15 +90,27 @@ export async function mangoBrowserLogin(
       const url = page.url();
 
       if (url.startsWith(CCC_URL)) {
-        const tokens = await page.evaluate(() => ({
-          auth: localStorage.getItem("auth_token"),
-          refresh: localStorage.getItem("refresh_token"),
-        }));
-        if (tokens.auth) {
-          const clean = (v: string) => v.trim().replace(/^"+|"+$/g, "");
+        const harvested = await page.evaluate(() => {
+          const member = localStorage.getItem("current_member");
+          let groups: unknown = null;
+          try {
+            groups = member
+              ? JSON.parse(localStorage.getItem(`${member}.operator_groups`) ?? "null")
+              : null;
+          } catch {
+            groups = null; // malformed JSON — treat as missing
+          }
+          return { jwt: localStorage.getItem("jwt_token"), groups };
+        });
+        const operatorGroups = Array.isArray(harvested.groups)
+          ? harvested.groups.filter(
+              (g): g is number => typeof g === "number" && Number.isFinite(g) && g > 0,
+            )
+          : [];
+        if (harvested.jwt && operatorGroups.length > 0) {
           return {
-            authToken: clean(tokens.auth),
-            refreshToken: tokens.refresh ? clean(tokens.refresh) : clean(tokens.auth),
+            jwtToken: harvested.jwt.trim().replace(/^"+|"+$/g, ""),
+            operatorGroups,
           };
         }
         // After login the CCC shows a "Начать" gate — click it to enter the app.

@@ -214,7 +214,7 @@ paths:
     put:
       operationId: putMangoToken
       tags: [mango]
-      summary: Store Mango session tokens pasted from the user's own browser session
+      summary: Store the Mango jwt_token and operator groups pasted from the user's own browser session
       requestBody:
         required: true
         content:
@@ -443,8 +443,10 @@ components:
         token:
           type: string
           minLength: 1
-        refresh:
+          description: RS256 jwt_token from the CCC session localStorage
+        groups:
           type: string
+          description: Operator group IDs as JSON array or CSV (localStorage <member_id>.operator_groups)
       required: [token]
 
     MangoCredentialsInput:

@@ -7,7 +7,11 @@
  */
 
 export interface MangoTokenInput {
-  /** @minLength 1 */
+  /**
+     * RS256 jwt_token from the CCC session localStorage
+     * @minLength 1
+     */
   token: string;
-  refresh?: string;
+  /** Operator group IDs as JSON array or CSV (localStorage <member_id>.operator_groups) */
+  groups?: string;
 }

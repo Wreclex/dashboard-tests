@@ -11,8 +11,8 @@ import {
   getGetMangoKpiQueryKey,
 } from '@workspace/api-client-react';
 
-/** One-liner for the Mango tab DevTools console — copies "auth||refresh" to clipboard. */
-const TOKEN_SNIPPET = `copy(localStorage.getItem('auth_token')+'||'+localStorage.getItem('refresh_token'))`;
+/** One-liner for the Mango tab DevTools console — copies "jwt_token||operator_groups" to clipboard. */
+const TOKEN_SNIPPET = `copy(localStorage.getItem('jwt_token')+'||'+localStorage.getItem(localStorage.getItem('current_member')+'.operator_groups'))`;
 
 interface Props {
   open: boolean;
@@ -113,16 +113,20 @@ export default function MangoModal({ open, onClose, isSignedIn }: Props) {
     const raw = tokenInput.trim();
     const sep = raw.indexOf('||');
     const token = (sep !== -1 ? raw.slice(0, sep) : raw).trim().replace(/^"+|"+$/g, '');
-    const refresh = sep !== -1 ? raw.slice(sep + 2).trim().replace(/^"+|"+$/g, '') : undefined;
+    const groups = sep !== -1 ? raw.slice(sep + 2).trim().replace(/^"+|"+$/g, '') : undefined;
     if (!token) return;
     try {
-      await putToken.mutateAsync({ data: { token, refresh } });
+      await putToken.mutateAsync({ data: { token, groups } });
       await queryClient.invalidateQueries({ queryKey: getGetMangoStatusQueryKey() });
       queryClient.setQueryData(getGetMangoKpiQueryKey(), null);
       setTokenInput('');
       setAuthFailed(false);
-    } catch {
-      setError('Не удалось сохранить токен');
+    } catch (err) {
+      if (errorCodeOf(err) === 'groups_required') {
+        setError('Вставка неполная — скопируйте строку командой выше и вставьте её целиком');
+      } else {
+        setError('Не удалось сохранить токен');
+      }
     }
   };
 
