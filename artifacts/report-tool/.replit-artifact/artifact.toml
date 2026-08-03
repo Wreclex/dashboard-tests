@@ -1,0 +1,28 @@
+kind = "web"
+previewPath = "/"
+title = "Report Tool"
+description = "A Russian-language work-shift reporting tool. Workers enter daily metrics (ПЗМ, ПСМ, ПСТЛ, ВСТЛ, ДОЖ), traffic times, and shift arrival/departure times. The app generates formatted report text for three modes: ПЛАН, ПРЕДВАРИТЕЛЬНЫЙ ОТЧЁТ, and ОТЧЁТ, with one-click copy and Telegram send functionality. Includes Google login via Clerk."
+version = "1.0.0"
+id = "artifacts/report-tool"
+router = "path"
+
+[[services]]
+name = "web"
+paths = [ "/" ]
+localPort = 18844
+
+[services.development]
+run = "pnpm --filter @workspace/report-tool run dev"
+
+[services.production]
+build = [ "pnpm", "--filter", "@workspace/report-tool", "run", "build" ]
+serve = "static"
+publicDir = "artifacts/report-tool/dist/public"
+
+[[services.production.rewrites]]
+from = "/*"
+to = "/index.html"
+
+[services.env]
+PORT = "18844"
+BASE_PATH = "/"

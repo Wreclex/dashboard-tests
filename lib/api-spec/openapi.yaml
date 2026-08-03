@@ -10,6 +10,8 @@ servers:
 tags:
   - name: health
     description: Health operations
+  - name: telegram
+    description: Telegram channel management and message delivery
 paths:
   /healthz:
     get:
@@ -24,6 +26,114 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/HealthStatus"
+
+  /telegram/channels:
+    get:
+      operationId: listTelegramChannels
+      tags: [telegram]
+      summary: List the authenticated user's Telegram channels
+      responses:
+        "200":
+          description: List of channels (bot tokens are never returned)
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/TelegramChannel"
+        "401":
+          description: Unauthorized
+    post:
+      operationId: createTelegramChannel
+      tags: [telegram]
+      summary: Add a new Telegram channel
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/TelegramChannelInput"
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TelegramChannel"
+        "401":
+          description: Unauthorized
+
+  /telegram/channels/{id}:
+    put:
+      operationId: updateTelegramChannel
+      tags: [telegram]
+      summary: Update a channel
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: number
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/TelegramChannelUpdate"
+      responses:
+        "200":
+          description: Updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TelegramChannel"
+        "401":
+          description: Unauthorized
+        "404":
+          description: Not found
+    delete:
+      operationId: deleteTelegramChannel
+      tags: [telegram]
+      summary: Delete a channel
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: number
+      responses:
+        "204":
+          description: Deleted
+        "401":
+          description: Unauthorized
+        "404":
+          description: Not found
+
+  /telegram/send:
+    post:
+      operationId: sendTelegramMessage
+      tags: [telegram]
+      summary: Send a message to a channel via the server (bot token stays server-side)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/TelegramSendInput"
+      responses:
+        "200":
+          description: Message sent
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TelegramSendResult"
+        "401":
+          description: Unauthorized
+        "404":
+          description: Channel not found
+        "502":
+          description: Telegram API error
+
 components:
   schemas:
     HealthStatus:
@@ -34,3 +144,70 @@ components:
       required:
         - status
 
+    TelegramChannel:
+      type: object
+      properties:
+        id:
+          type: number
+        name:
+          type: string
+        chatId:
+          type: string
+        createdAt:
+          type: string
+      required:
+        - id
+        - name
+        - chatId
+        - createdAt
+
+    TelegramChannelInput:
+      type: object
+      properties:
+        name:
+          type: string
+          minLength: 1
+        chatId:
+          type: string
+          minLength: 1
+        botToken:
+          type: string
+          minLength: 1
+      required:
+        - name
+        - chatId
+        - botToken
+
+    TelegramChannelUpdate:
+      type: object
+      properties:
+        name:
+          type: string
+          minLength: 1
+        chatId:
+          type: string
+          minLength: 1
+        botToken:
+          type: string
+
+    TelegramSendInput:
+      type: object
+      properties:
+        channelId:
+          type: number
+        text:
+          type: string
+          minLength: 1
+      required:
+        - channelId
+        - text
+
+    TelegramSendResult:
+      type: object
+      properties:
+        ok:
+          type: boolean
+        messageId:
+          type: ["number", "null"]
+      required:
+        - ok
