@@ -134,8 +134,10 @@ export const GetMangoStatusResponse = zod.object({
 
 
 
+
 export const PutMangoTokenBody = zod.object({
-  "token": zod.string().min(1)
+  "email": zod.string().min(1),
+  "password": zod.string().min(1)
 })
 
 export const PutMangoTokenResponse = zod.void()

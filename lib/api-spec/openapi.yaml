@@ -418,10 +418,13 @@ components:
     MangoTokenInput:
       type: object
       properties:
-        token:
+        email:
           type: string
           minLength: 1
-      required: [token]
+        password:
+          type: string
+          minLength: 1
+      required: [email, password]
 
     MangoStatus:
       type: object

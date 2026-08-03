@@ -17,7 +17,7 @@ import {
 } from "./reportText";
 import { getTodaySheetCounts } from "./sheetCounts";
 import { logger } from "./logger";
-import { getMangoKpi, MangoTokenExpiredError } from "./mangoKpi";
+import { getMangoKpi, MangoAuthError } from "./mangoKpi";
 import { formatMangoTraffic } from "./mangoKpiFormat";
 
 let isTickRunning = false;
@@ -185,12 +185,12 @@ async function sendDueReports(): Promise<void> {
         }
         try {
           const [mangoCredential] = await db
-            .select({ bearerToken: mangoCredentials.bearerToken })
+            .select({ email: mangoCredentials.email, password: mangoCredentials.password })
             .from(mangoCredentials)
             .where(eq(mangoCredentials.userId, schedule.userId))
             .limit(1);
           if (mangoCredential) {
-            const mango = await getMangoKpi(mangoCredential.bearerToken, {
+            const mango = await getMangoKpi(mangoCredential.email, mangoCredential.password, {
               totalTimeoutMs: MANGO_SCHEDULER_BUDGET_MS,
             });
             state.kz = mango.calls;
@@ -201,8 +201,8 @@ async function sendDueReports(): Promise<void> {
               .where(eq(userReportState.userId, schedule.userId));
           }
         } catch (err) {
-          const message = err instanceof MangoTokenExpiredError
-            ? "Mango Office token expired — using saved KPI"
+          const message = err instanceof MangoAuthError
+            ? "Mango Office auth failed — using saved KPI"
             : "Mango Office KPI sync failed — using saved KPI";
           logger.warn({ err, scheduleId: schedule.id }, message);
         }
