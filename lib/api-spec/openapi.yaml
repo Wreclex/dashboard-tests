@@ -34,6 +34,13 @@ paths:
       operationId: getSheetCounts
       tags: [sheets]
       summary: Count today's touches per metric from Google Sheets
+      parameters:
+        - name: name
+          in: query
+          required: false
+          schema:
+            type: string
+          description: Manager name to filter by (column K). Normalized match — spaces and case ignored.
       responses:
         "200":
           description: Today's metric counts

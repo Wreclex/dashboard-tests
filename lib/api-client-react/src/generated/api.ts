@@ -20,6 +20,7 @@ import type {
 } from '@tanstack/react-query';
 
 import type {
+  GetSheetCountsParams,
   HealthStatus,
   SheetCounts,
   TelegramChannel,
@@ -134,20 +135,27 @@ export function useHealthCheck<TData = Awaited<ReturnType<typeof healthCheck>>, 
 
 
 
-export const getGetSheetCountsUrl = () => {
+export const getGetSheetCountsUrl = (params?: GetSheetCountsParams,) => {
+  const normalizedParams = new URLSearchParams();
 
+  Object.entries(params || {}).forEach(([key, value]) => {
 
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : String(value))
+    }
+  });
 
+  const stringifiedParams = normalizedParams.toString();
 
-  return `/api/sheets/counts`
+  return stringifiedParams.length > 0 ? `/api/sheets/counts?${stringifiedParams}` : `/api/sheets/counts`
 }
 
 /**
  * @summary Count today's touches per metric from Google Sheets
  */
-export const getSheetCounts = async ( options?: Parameters<typeof customFetch>[1]): Promise<SheetCounts> => {
+export const getSheetCounts = async (params?: GetSheetCountsParams, options?: Parameters<typeof customFetch>[1]): Promise<SheetCounts> => {
 
-  return customFetch<SheetCounts>(getGetSheetCountsUrl(),
+  return customFetch<SheetCounts>(getGetSheetCountsUrl(params),
   {
     ...options,
     method: 'GET'
@@ -160,23 +168,23 @@ export const getSheetCounts = async ( options?: Parameters<typeof customFetch>[1
 
 
 
-export const getGetSheetCountsQueryKey = () => {
+export const getGetSheetCountsQueryKey = (params?: GetSheetCountsParams,) => {
     return [
-    `/api/sheets/counts`
+    `/api/sheets/counts`, ...(params ? [params] : [])
     ] as const;
     }
 
 
-export const getGetSheetCountsQueryOptions = <TData = Awaited<ReturnType<typeof getSheetCounts>>, TError = ErrorType<void>>( options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getSheetCounts>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+export const getGetSheetCountsQueryOptions = <TData = Awaited<ReturnType<typeof getSheetCounts>>, TError = ErrorType<void>>(params?: GetSheetCountsParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getSheetCounts>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
 ) => {
 
 const {query: queryOptions, request: requestOptions} = options ?? {};
 
-  const queryKey =  queryOptions?.queryKey ?? getGetSheetCountsQueryKey();
+  const queryKey =  queryOptions?.queryKey ?? getGetSheetCountsQueryKey(params);
 
 
 
-    const queryFn: QueryFunction<Awaited<ReturnType<typeof getSheetCounts>>> = ({ signal }) => getSheetCounts({ signal, ...requestOptions });
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getSheetCounts>>> = ({ signal }) => getSheetCounts(params, { signal, ...requestOptions });
 
 
 
@@ -194,11 +202,11 @@ export type GetSheetCountsQueryError = ErrorType<void>
  */
 
 export function useGetSheetCounts<TData = Awaited<ReturnType<typeof getSheetCounts>>, TError = ErrorType<void>>(
-  options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getSheetCounts>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+ params?: GetSheetCountsParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getSheetCounts>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
 
  ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
 
-  const queryOptions = getGetSheetCountsQueryOptions(options)
+  const queryOptions = getGetSheetCountsQueryOptions(params,options)
 
   const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
 

@@ -31,9 +31,13 @@ export default function MainApp() {
   const [copied, setCopied] = useState(false);
   const [syncStatus, setSyncStatus] = useState<'idle' | 'loading' | 'ok' | 'err'>('idle');
 
-  const { refetch: fetchSheetCounts } = useGetSheetCounts({
-    query: { enabled: false, queryKey: getGetSheetCountsQueryKey() },
-  });
+  // Strip leading "#" from tag1 to get the bare manager name for sheet filtering
+  const sheetName = signature.tag1.replace(/^#/, '').trim() || undefined;
+
+  const { refetch: fetchSheetCounts } = useGetSheetCounts(
+    { name: sheetName },
+    { query: { enabled: false, queryKey: getGetSheetCountsQueryKey({ name: sheetName }) } },
+  );
 
   const handleSyncSheet = useCallback(async () => {
     setSyncStatus('loading');

@@ -8,12 +8,18 @@ const router = Router();
 // Column indices (0-based) in the spreadsheet
 // AC=28, AD=29, AE=30, AF=31, AG=32
 const COL = {
+  manager: 10, // K — manager name (ПЗМ specialist)
   pzm: 28,   // AC — ДАТА совершенного ПЗМ
   pstl: 29,  // AD — ДАТА совершенного ВЗМ  → ПСТЛ in the app
   psm: 30,   // AE — ДАТА совершенного ПСМ
   vstl: 31,  // AF — ДАТА совершенного ВСМ  → ВСТЛ in the app
   dozh: 32,  // AG — ДАТА ПЕРВОГО ПЛАТЕЖА   → ДОЖ in the app
 };
+
+/** Normalize a name for comparison: lowercase, strip non-letter/digit chars */
+function normalizeName(s: string): string {
+  return s.toLowerCase().replace(/[^a-zа-яё0-9]/gi, "");
+}
 
 const SPREADSHEET_ID = "1J4db2S0XJgEHLxQMpO2ey7GbhWFkySFDVj9ZCUXK4ko";
 
@@ -31,9 +37,11 @@ function requireAuth(req: any, res: any, next: any) {
   next();
 }
 
-// GET /api/sheets/counts
+// GET /api/sheets/counts?name=АсланАкперов
 router.get("/counts", requireAuth, async (req: any, res) => {
   const today = formatSheetDate(new Date());
+  const rawName = typeof req.query.name === "string" ? req.query.name.trim() : "";
+  const filterNorm = rawName ? normalizeName(rawName) : null;
 
   try {
     const connectors = new ReplitConnectors();
@@ -58,6 +66,12 @@ router.get("/counts", requireAuth, async (req: any, res) => {
     let pzm = 0, psm = 0, pstl = 0, vstl = 0, dozh = 0;
 
     for (const row of rows) {
+      // If a name filter is given, only count rows where column K matches
+      if (filterNorm) {
+        const managerNorm = normalizeName(row[COL.manager] ?? "");
+        if (!managerNorm.includes(filterNorm) && !filterNorm.includes(managerNorm)) continue;
+      }
+
       if ((row[COL.pzm] ?? "").trim() === today) pzm++;
       if ((row[COL.psm] ?? "").trim() === today) psm++;
       if ((row[COL.pstl] ?? "").trim() === today) pstl++;
@@ -65,7 +79,7 @@ router.get("/counts", requireAuth, async (req: any, res) => {
       if ((row[COL.dozh] ?? "").trim() === today) dozh++;
     }
 
-    req.log.info({ today, pzm, psm, pstl, vstl, dozh, rows: rows.length }, "Sheet counts");
+    req.log.info({ today, filter: rawName || "(all)", pzm, psm, pstl, vstl, dozh, rows: rows.length }, "Sheet counts");
     return res.json({ pzm, psm, pstl, vstl, dozh, date: today });
   } catch (err) {
     req.log.error({ err }, "Failed to fetch sheet counts");

@@ -20,6 +20,10 @@ export const HealthCheckResponse = zod.object({
 /**
  * @summary Count today's touches per metric from Google Sheets
  */
+export const GetSheetCountsQueryParams = zod.object({
+  "name": zod.coerce.string().optional().describe('Manager name to filter by (column K). Normalized match — spaces and case ignored.')
+})
+
 export const GetSheetCountsResponse = zod.object({
   "pzm": zod.number(),
   "psm": zod.number(),

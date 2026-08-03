@@ -6,6 +6,7 @@
  * OpenAPI spec version: 0.1.0
  */
 
+export * from './getSheetCountsParams';
 export * from './healthStatus';
 export * from './sheetCounts';
 export * from './telegramChannel';

@@ -54,3 +54,10 @@ export interface TelegramSendResult {
   messageId?: number | null;
 }
 
+export type GetSheetCountsParams = {
+/**
+ * Manager name to filter by (column K). Normalized match — spaces and case ignored.
+ */
+name?: string;
+};
+
