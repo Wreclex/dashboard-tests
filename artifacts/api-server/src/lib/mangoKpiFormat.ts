@@ -65,8 +65,8 @@ export const FIELD_TRAFFIC = "total-time-external-calls";
 // ─── Error types ──────────────────────────────────────────────────────────────
 
 export class MangoTokenExpiredError extends Error {
-  constructor() {
-    super("Mango Office token expired");
+  constructor(message = "Mango Office token expired") {
+    super(message);
   }
 }
 
@@ -270,7 +270,18 @@ export async function fetchMangoKpi(
     );
   }
 
-  if (hsRes.status === 401 || hsRes.status === 403) throw new MangoTokenExpiredError();
+  if (hsRes.status === 401 || hsRes.status === 403) {
+    // Capture Mango's error body — it explains WHY the token was rejected
+    // (e.g. wrong audience, expired, malformed) which is critical for debugging.
+    let detail = "";
+    try {
+      detail = (await hsRes.text()).slice(0, 500);
+    } catch { /* body unavailable */ }
+    console.warn(`[mango] KPI handshake rejected: HTTP ${hsRes.status} body=${detail || "<empty>"}`);
+    throw new MangoTokenExpiredError(
+      `Mango отклонил токен (HTTP ${hsRes.status})${detail ? `: ${detail}` : ""}`,
+    );
+  }
   if (!hsRes.ok)
     throw new MangoKpiUnavailableError(`Mango handshake returned HTTP ${hsRes.status}`);
 

@@ -38,8 +38,17 @@ router.put("/token", requireAuth, async (req: any, res): Promise<void> => {
     res.status(400).json({ error: "token is required" });
     return;
   }
-  const authToken = token.trim();
-  const refreshToken = typeof refresh === "string" && refresh.trim() ? refresh.trim() : authToken;
+  // Normalize: localStorage values are often JSON-stringified ("\"abc\"") and
+  // users sometimes paste with a "Bearer " prefix — strip both.
+  const normalize = (raw: string): string =>
+    raw.trim().replace(/^"+|"+$/g, "").replace(/^Bearer\s+/i, "").trim();
+  const authToken = normalize(token);
+  const refreshToken =
+    typeof refresh === "string" && normalize(refresh) ? normalize(refresh) : authToken;
+  if (!authToken) {
+    res.status(400).json({ error: "token is required" });
+    return;
+  }
 
   try {
     await db
