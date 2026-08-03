@@ -33,17 +33,23 @@ function formatTraffic(seconds: number) {
  * Combined format: "<auth_token>||<refresh_token>"
  * If refresh_token is absent, just "<auth_token>"
  */
-const BOOKMARKLET = `javascript:(function(){
-var t=localStorage.getItem('auth_token');
-var r=localStorage.getItem('refresh_token');
-if(!t){alert('Токен не найден. Сначала войдите в Mango Office.');return;}
-var val=r?t+'||'+r:t;
-var o=document.createElement('div');
-o.id='__mt';
-o.style.cssText='position:fixed;top:16px;right:16px;background:#0f172a;color:#f1f5f9;padding:20px;border-radius:16px;z-index:2147483647;width:340px;box-shadow:0 20px 60px rgba(0,0,0,.9);font-family:system-ui,sans-serif;border:1px solid rgba(255,255,255,.12)';
-o.innerHTML='<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px"><b style="font-size:13px">🔑 Токен готов</b><button onclick="document.getElementById(\'__mt\').remove()" style="background:none;border:none;color:#94a3b8;cursor:pointer;font-size:20px">&times;</button></div><p style="font-size:11px;color:#94a3b8;margin:0 0 10px">Нажмите кнопку ниже, затем вставьте в Report Tool</p><button id="__mtb" onclick="navigator.clipboard.writeText(\''+val.replace(/\\/g,\'\\\\\\\\').replace(/\'/g,\'\\\\\'\')+'\')" style="width:100%;padding:11px;background:#f97316;border:none;border-radius:10px;color:#fff;font-weight:700;cursor:pointer;font-size:13px">📋 Скопировать токен</button>';
-document.body.appendChild(o);
+/**
+ * Core extraction script. Uses a native prompt() dialog (cannot be blocked by
+ * the page's Content-Security-Policy, unlike injected DOM overlays) and scans
+ * both localStorage and sessionStorage for token-like keys instead of assuming
+ * exact key names.
+ */
+const EXTRACT_SCRIPT = `(function(){
+function scan(s){var o={};try{for(var i=0;i<s.length;i++){var k=s.key(i);if(/token/i.test(k))o[k]=s.getItem(k);}}catch(e){}return o;}
+var ls=scan(localStorage),ss=scan(sessionStorage);
+var t=ls.auth_token||ss.auth_token,r=ls.refresh_token||ss.refresh_token;
+if(!t){var ks=Object.keys(ls).concat(Object.keys(ss));alert('Токен не найден. Ключи с token: '+(ks.join(', ')||'нет')+'. Проверьте, что вы вошли на ccc.mango-office.ru и открыли закладку именно на этой вкладке.');return;}
+prompt('Скопируйте (Ctrl+C / Cmd+C) и вставьте в Report Tool:',r?t+'||'+r:t);
 })()`.replace(/\n/g, '');
+
+const BOOKMARKLET = `javascript:${EXTRACT_SCRIPT}`;
+/** Fallback: paste into DevTools console if the bookmarklet does nothing. */
+const CONSOLE_SNIPPET = EXTRACT_SCRIPT;
 
 /** Parse a pasted token string — supports "token||refresh" or bare token. */
 function parseTokenInput(raw: string): { token: string; refresh?: string } {
@@ -60,6 +66,7 @@ export default function MangoModal({ open, onClose, isSignedIn }: Props) {
   const [tokenInput, setTokenInput] = useState('');
   const [error, setError] = useState('');
   const [tokenExpired, setTokenExpired] = useState(false);
+  const [snippetCopied, setSnippetCopied] = useState(false);
 
   const statusQuery = useGetMangoStatus({
     query: { enabled: open && isSignedIn, queryKey: getGetMangoStatusQueryKey() },
@@ -202,6 +209,22 @@ export default function MangoModal({ open, onClose, isSignedIn }: Props) {
                 <p className="text-[10px] text-muted-foreground/60 text-center">
                   Зажмите и перетащите в панель закладок
                 </p>
+                <div className="flex flex-col gap-2 pt-2 border-t border-white/[0.06]">
+                  <p className="text-[11px] text-muted-foreground leading-relaxed">
+                    Закладка не сработала? Скопируйте команду, откройте на странице Mango
+                    консоль (F12 → Console), вставьте её и нажмите Enter:
+                  </p>
+                  <button
+                    onClick={() => {
+                      navigator.clipboard.writeText(CONSOLE_SNIPPET);
+                      setSnippetCopied(true);
+                      setTimeout(() => setSnippetCopied(false), 2000);
+                    }}
+                    className="press-sm flex items-center justify-center gap-2 w-full h-9 rounded-xl bg-white/[0.06] hover:bg-white/[0.1] transition-colors text-[11px] font-semibold text-foreground"
+                  >
+                    {snippetCopied ? '✓ Скопировано' : 'Скопировать команду для консоли'}
+                  </button>
+                </div>
               </div>
 
               {/* Step 2 — paste */}
