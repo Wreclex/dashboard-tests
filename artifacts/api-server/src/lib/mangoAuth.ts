@@ -1,30 +1,42 @@
 /**
  * Mango Office CCC authentication.
  *
- * Signs in with email + password to obtain a short-lived Bearer token.
- * The token is used for subsequent KPI API calls in the same request.
+ * Protocol discovered from the Mango CCC dashboard bundle (chunk-D5CTCMDK.js):
+ *
+ *   POST https://auth.mango-office.ru/auth/vpbx
+ *   Body: { username: "<email>", password: "<password>", app: "webcov" }
+ *   Success response: { auth_token: "...", jwt_token: "...", refresh_token: "...", result: 0, ... }
+ *   Error response:   { result: 1101 }  (wrong credentials)
+ *
+ * The returned auth_token is used as the Bearer token for subsequent API calls
+ * to api2.mangotele.com (KPI reports, etc.).
  */
 
-export const MANGO_AUTH_URL = "https://api2.mangotele.com/v2/auth/sign-in";
+export const MANGO_AUTH_URL = "https://auth.mango-office.ru/auth/vpbx";
 
 export class MangoAuthError extends Error {
-  constructor(message = "Mango Office sign-in failed — check your email and password") {
+  constructor(message = "Неверный логин или пароль Mango Office") {
     super(message);
     this.name = "MangoAuthError";
   }
 }
 
 /**
- * Sign in to Mango CCC and return the Bearer token string.
+ * Sign in to Mango CCC and return the auth_token (Bearer token).
  * Throws MangoAuthError on bad credentials or unexpected response.
  */
-export async function mangoSignIn(email: string, password: string): Promise<string> {
+export async function mangoSignIn(username: string, password: string): Promise<string> {
   let res: Response;
   try {
     res = await fetch(MANGO_AUTH_URL, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ email, password }),
+      headers: {
+        "Content-Type": "application/json",
+        "Origin": "https://ccc.mango-office.ru",
+        "Referer": "https://ccc.mango-office.ru/",
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36",
+      },
+      body: JSON.stringify({ username, password, app: "webcov" }),
       signal: AbortSignal.timeout(15_000),
     });
   } catch (err) {
@@ -33,31 +45,30 @@ export async function mangoSignIn(email: string, password: string): Promise<stri
     );
   }
 
-  if (res.status === 401 || res.status === 403 || res.status === 400) {
-    throw new MangoAuthError("Неверный логин или пароль Mango Office");
-  }
-
   if (!res.ok) {
-    throw new MangoAuthError(`Mango sign-in returned HTTP ${res.status}`);
+    throw new MangoAuthError(`Mango auth server returned HTTP ${res.status}`);
   }
 
   let body: unknown;
   try {
     body = await res.json();
   } catch {
-    throw new MangoAuthError("Mango sign-in returned non-JSON response");
+    throw new MangoAuthError("Mango auth server returned non-JSON response");
   }
 
-  // The response contains a `token` field (JWT or opaque string).
-  if (
-    body !== null &&
-    typeof body === "object" &&
-    "token" in body &&
-    typeof (body as Record<string, unknown>).token === "string"
-  ) {
-    const token = ((body as Record<string, unknown>).token as string).trim();
-    if (token) return token;
+  if (body !== null && typeof body === "object") {
+    const b = body as Record<string, unknown>;
+
+    // Non-zero result codes indicate errors (e.g. 1101 = wrong credentials).
+    if (typeof b.result === "number" && b.result !== 0) {
+      throw new MangoAuthError("Неверный логин или пароль Mango Office");
+    }
+
+    // Token is stored in auth_token field.
+    if (typeof b.auth_token === "string" && b.auth_token.trim()) {
+      return b.auth_token.trim();
+    }
   }
 
-  throw new MangoAuthError("Mango sign-in response did not contain a token field");
+  throw new MangoAuthError("Mango auth response did not contain an auth_token field");
 }
