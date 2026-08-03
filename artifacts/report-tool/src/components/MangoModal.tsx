@@ -165,6 +165,7 @@ export default function MangoModal({ open, onClose, isSignedIn }: Props) {
                 </span>
                 <p className="text-[11px] text-muted-foreground leading-relaxed">
                   В поле логина укажите именно логин (не email), как на странице входа Mango.
+                </p>
                 <p className="text-[11px] text-muted-foreground leading-relaxed">
                   Сервер сам войдёт в Mango через невидимый браузер и будет автоматически обновлять сессию. Никаких закладок и токенов вручную.
                 </p>
