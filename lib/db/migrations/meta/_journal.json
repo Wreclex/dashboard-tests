@@ -15,6 +15,13 @@
       "when": 1785750000000,
       "tag": "0001_auto_report_schedules",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1785751200000,
+      "tag": "0002_mango_credentials",
+      "breakpoints": true
     }
   ]
 }

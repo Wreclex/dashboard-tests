@@ -121,6 +121,48 @@ export const SendTelegramMessageResponse = zod.object({
 
 
 /**
+ * @summary Get Mango Office connection status
+ */
+export const GetMangoStatusResponse = zod.object({
+  "isConnected": zod.boolean()
+})
+
+
+/**
+ * @summary Store the authenticated user's Mango Office bearer token
+ */
+
+
+
+export const PutMangoTokenBody = zod.object({
+  "token": zod.string().min(1)
+})
+
+export const PutMangoTokenResponse = zod.void()
+
+
+/**
+ * @summary Remove the authenticated user's Mango Office bearer token
+ */
+export const DeleteMangoTokenResponse = zod.void()
+
+
+/**
+ * @summary Fetch today's Mango Office calls and traffic duration
+ */
+export const getMangoKpiResponseCallsMin = 0;
+
+export const getMangoKpiResponseTrafficSecondsMin = 0;
+
+
+
+export const GetMangoKpiResponse = zod.object({
+  "calls": zod.number().min(getMangoKpiResponseCallsMin),
+  "trafficSeconds": zod.number().min(getMangoKpiResponseTrafficSecondsMin)
+})
+
+
+/**
  * @summary Save the authenticated user's current report state for scheduled delivery
  */
 export const saveUserReportStateBodyStatePzmMin = 0;

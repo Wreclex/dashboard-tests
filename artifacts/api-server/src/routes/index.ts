@@ -3,6 +3,7 @@ import healthRouter from "./health";
 import telegramRouter from "./telegram";
 import sheetsRouter from "./sheets";
 import autoReportsRouter from "./autoReports";
+import mangoRouter from "./mango";
 
 const router: IRouter = Router();
 
@@ -10,5 +11,6 @@ router.use(healthRouter);
 router.use("/telegram", telegramRouter);
 router.use("/sheets", sheetsRouter);
 router.use(autoReportsRouter);
+router.use("/mango", mangoRouter);
 
 export default router;

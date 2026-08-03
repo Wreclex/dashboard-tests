@@ -16,6 +16,8 @@ tags:
     description: Google Sheets data sync
   - name: auto-reports
     description: Scheduled Telegram report delivery
+  - name: mango
+    description: Mango Office KPI synchronization
 paths:
   /healthz:
     get:
@@ -162,6 +164,68 @@ paths:
         "502":
           description: Telegram API error
 
+  /mango/status:
+    get:
+      operationId: getMangoStatus
+      tags: [mango]
+      summary: Get Mango Office connection status
+      responses:
+        "200":
+          description: Connection status
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MangoStatus"
+        "401":
+          description: Unauthorized
+
+  /mango/token:
+    put:
+      operationId: putMangoToken
+      tags: [mango]
+      summary: Store the authenticated user's Mango Office bearer token
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/MangoTokenInput"
+      responses:
+        "204":
+          description: Token stored
+        "400":
+          description: Invalid token
+        "401":
+          description: Unauthorized
+    delete:
+      operationId: deleteMangoToken
+      tags: [mango]
+      summary: Remove the authenticated user's Mango Office bearer token
+      responses:
+        "204":
+          description: Token removed
+        "401":
+          description: Unauthorized
+
+  /mango/kpi:
+    get:
+      operationId: getMangoKpi
+      tags: [mango]
+      summary: Fetch today's Mango Office calls and traffic duration
+      responses:
+        "200":
+          description: Today's KPI values
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MangoKpi"
+        "401":
+          description: Unauthorized or expired Mango token
+        "404":
+          description: Mango token is not configured
+        "502":
+          description: Mango Office could not provide KPI data
+
   /state:
     post:
       operationId: saveUserReportState
@@ -248,6 +312,7 @@ paths:
           description: Unauthorized
         "404":
           description: Schedule not found
+
 
 components:
   schemas:
@@ -349,6 +414,32 @@ components:
           type: ["number", "null"]
       required:
         - ok
+
+    MangoTokenInput:
+      type: object
+      properties:
+        token:
+          type: string
+          minLength: 1
+      required: [token]
+
+    MangoStatus:
+      type: object
+      properties:
+        isConnected:
+          type: boolean
+      required: [isConnected]
+
+    MangoKpi:
+      type: object
+      properties:
+        calls:
+          type: number
+          minimum: 0
+        trafficSeconds:
+          type: number
+          minimum: 0
+      required: [calls, trafficSeconds]
 
     ReportStateData:
       type: object

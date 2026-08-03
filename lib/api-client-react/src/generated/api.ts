@@ -25,6 +25,9 @@ import type {
   AutoReportScheduleUpdate,
   GetSheetCountsParams,
   HealthStatus,
+  MangoKpi,
+  MangoStatus,
+  MangoTokenInput,
   SheetCounts,
   TelegramChannel,
   TelegramChannelInput,
@@ -584,6 +587,302 @@ export const useSendTelegramMessage = <TError = ErrorType<void>,
       > => {
       return useMutation(getSendTelegramMessageMutationOptions(options));
     }
+
+export const getGetMangoStatusUrl = () => {
+
+
+
+
+  return `/api/mango/status`
+}
+
+/**
+ * @summary Get Mango Office connection status
+ */
+export const getMangoStatus = async ( options?: Parameters<typeof customFetch>[1]): Promise<MangoStatus> => {
+
+  return customFetch<MangoStatus>(getGetMangoStatusUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetMangoStatusQueryKey = () => {
+    return [
+    `/api/mango/status`
+    ] as const;
+    }
+
+
+export const getGetMangoStatusQueryOptions = <TData = Awaited<ReturnType<typeof getMangoStatus>>, TError = ErrorType<void>>( options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getMangoStatus>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetMangoStatusQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getMangoStatus>>> = ({ signal }) => getMangoStatus({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getMangoStatus>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetMangoStatusQueryResult = NonNullable<Awaited<ReturnType<typeof getMangoStatus>>>
+export type GetMangoStatusQueryError = ErrorType<void>
+
+
+/**
+ * @summary Get Mango Office connection status
+ */
+
+export function useGetMangoStatus<TData = Awaited<ReturnType<typeof getMangoStatus>>, TError = ErrorType<void>>(
+  options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getMangoStatus>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetMangoStatusQueryOptions(options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getPutMangoTokenUrl = () => {
+
+
+
+
+  return `/api/mango/token`
+}
+
+/**
+ * @summary Store the authenticated user's Mango Office bearer token
+ */
+export const putMangoToken = async (mangoTokenInput: MangoTokenInput, options?: Parameters<typeof customFetch>[1]): Promise<void> => {
+
+  return customFetch<void>(getPutMangoTokenUrl(),
+  {
+    ...options,
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(mangoTokenInput)
+  }
+);}
+
+
+
+
+
+export const getPutMangoTokenMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof putMangoToken>>, TError,{data: BodyType<MangoTokenInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof putMangoToken>>, TError,{data: BodyType<MangoTokenInput>}, TContext> => {
+
+const mutationKey = ['putMangoToken'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof putMangoToken>>, {data: BodyType<MangoTokenInput>}> = (props) => {
+          const {data} = props ?? {};
+
+          return  putMangoToken(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type PutMangoTokenMutationResult = NonNullable<Awaited<ReturnType<typeof putMangoToken>>>
+    export type PutMangoTokenMutationBody = BodyType<MangoTokenInput>
+    export type PutMangoTokenMutationError = ErrorType<void>
+
+    /**
+ * @summary Store the authenticated user's Mango Office bearer token
+ */
+export const usePutMangoToken = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof putMangoToken>>, TError,{data: BodyType<MangoTokenInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof putMangoToken>>,
+        TError,
+        {data: BodyType<MangoTokenInput>},
+        TContext
+      > => {
+      return useMutation(getPutMangoTokenMutationOptions(options));
+    }
+
+export const getDeleteMangoTokenUrl = () => {
+
+
+
+
+  return `/api/mango/token`
+}
+
+/**
+ * @summary Remove the authenticated user's Mango Office bearer token
+ */
+export const deleteMangoToken = async ( options?: Parameters<typeof customFetch>[1]): Promise<void> => {
+
+  return customFetch<void>(getDeleteMangoTokenUrl(),
+  {
+    ...options,
+    method: 'DELETE'
+
+
+  }
+);}
+
+
+
+
+
+export const getDeleteMangoTokenMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof deleteMangoToken>>, TError,void, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof deleteMangoToken>>, TError,void, TContext> => {
+
+const mutationKey = ['deleteMangoToken'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof deleteMangoToken>>, void> = () => {
+
+
+          return  deleteMangoToken(requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type DeleteMangoTokenMutationResult = NonNullable<Awaited<ReturnType<typeof deleteMangoToken>>>
+
+    export type DeleteMangoTokenMutationError = ErrorType<void>
+
+    /**
+ * @summary Remove the authenticated user's Mango Office bearer token
+ */
+export const useDeleteMangoToken = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof deleteMangoToken>>, TError,void, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof deleteMangoToken>>,
+        TError,
+        void,
+        TContext
+      > => {
+      return useMutation(getDeleteMangoTokenMutationOptions(options));
+    }
+
+export const getGetMangoKpiUrl = () => {
+
+
+
+
+  return `/api/mango/kpi`
+}
+
+/**
+ * @summary Fetch today's Mango Office calls and traffic duration
+ */
+export const getMangoKpi = async ( options?: Parameters<typeof customFetch>[1]): Promise<MangoKpi> => {
+
+  return customFetch<MangoKpi>(getGetMangoKpiUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetMangoKpiQueryKey = () => {
+    return [
+    `/api/mango/kpi`
+    ] as const;
+    }
+
+
+export const getGetMangoKpiQueryOptions = <TData = Awaited<ReturnType<typeof getMangoKpi>>, TError = ErrorType<void>>( options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getMangoKpi>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetMangoKpiQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getMangoKpi>>> = ({ signal }) => getMangoKpi({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getMangoKpi>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetMangoKpiQueryResult = NonNullable<Awaited<ReturnType<typeof getMangoKpi>>>
+export type GetMangoKpiQueryError = ErrorType<void>
+
+
+/**
+ * @summary Fetch today's Mango Office calls and traffic duration
+ */
+
+export function useGetMangoKpi<TData = Awaited<ReturnType<typeof getMangoKpi>>, TError = ErrorType<void>>(
+  options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getMangoKpi>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetMangoKpiQueryOptions(options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
 
 export const getSaveUserReportStateUrl = () => {
 

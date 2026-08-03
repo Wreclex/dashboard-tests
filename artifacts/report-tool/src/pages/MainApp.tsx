@@ -7,9 +7,10 @@ import SignatureModal from '@/components/SignatureModal';
 import TelegramModal from '@/components/TelegramModal';
 import DefaultsModal from '@/components/DefaultsModal';
 import AutoReportModal from '@/components/AutoReportModal';
+import MangoModal from '@/components/MangoModal';
 import { useReportState, buildPreviewText, formatDate } from '@/hooks/useReportState';
-import { useGetSheetCounts, getGetSheetCountsQueryKey } from '@workspace/api-client-react';
-import { Settings, Send, RotateCcw, Copy, Check, LogIn, LogOut, SlidersHorizontal, RefreshCw, Clock3 } from 'lucide-react';
+import { useGetSheetCounts, getGetSheetCountsQueryKey, useGetMangoKpi, getGetMangoKpiQueryKey } from '@workspace/api-client-react';
+import { Settings, Send, RotateCcw, Copy, Check, LogIn, LogOut, SlidersHorizontal, RefreshCw, Clock3, Phone } from 'lucide-react';
 
 const basePath = import.meta.env.BASE_URL.replace(/\/$/, '');
 
@@ -30,8 +31,10 @@ export default function MainApp() {
   const [tgOpen, setTgOpen] = useState(false);
   const [defaultsOpen, setDefaultsOpen] = useState(false);
   const [autoOpen, setAutoOpen] = useState(false);
+  const [mangoOpen, setMangoOpen] = useState(false);
   const [copied, setCopied] = useState(false);
   const [syncStatus, setSyncStatus] = useState<'idle' | 'loading' | 'ok' | 'err'>('idle');
+  const [mangoSyncStatus, setMangoSyncStatus] = useState<'idle' | 'loading' | 'ok' | 'expired' | 'err'>('idle');
 
   // Strip leading "#" from tag1 to get the bare manager name for sheet filtering
   const sheetName = signature.tag1.replace(/^#/, '').trim() || undefined;
@@ -39,6 +42,9 @@ export default function MainApp() {
   const { refetch: fetchSheetCounts } = useGetSheetCounts(
     { name: sheetName },
     { query: { enabled: false, queryKey: getGetSheetCountsQueryKey({ name: sheetName }) } },
+  );
+  const { refetch: fetchMangoKpi } = useGetMangoKpi(
+    { query: { enabled: false, queryKey: getGetMangoKpiQueryKey() } },
   );
 
   const handleSyncSheet = useCallback(async () => {
@@ -58,6 +64,25 @@ export default function MainApp() {
       setTimeout(() => setSyncStatus('idle'), 2500);
     }
   }, [fetchSheetCounts, updateField]);
+
+  const handleSyncMango = useCallback(async () => {
+    setMangoSyncStatus('loading');
+    try {
+      const result = await fetchMangoKpi();
+      if (result.data) {
+        updateField('kz', result.data.calls);
+        updateField('trafikCurrent', formatTrafficSeconds(result.data.trafficSeconds));
+        setMangoSyncStatus('ok');
+      } else {
+        const errorCode = (result.error as { data?: { error?: string } } | null)?.data?.error;
+        setMangoSyncStatus(errorCode === 'token_expired' ? 'expired' : 'err');
+      }
+    } catch (err) {
+      const errorCode = (err as { data?: { error?: string } })?.data?.error;
+      setMangoSyncStatus(errorCode === 'token_expired' ? 'expired' : 'err');
+    }
+    setTimeout(() => setMangoSyncStatus('idle'), 3000);
+  }, [fetchMangoKpi, updateField]);
 
   const today = formatDate(new Date());
   const previewText = buildPreviewText(tab, state, signature, today);
@@ -194,22 +219,38 @@ export default function MainApp() {
                       Основные показатели
                     </p>
                   </div>
-                  <Show when="signed-in">
-                    <button
-                      onClick={handleSyncSheet}
-                      disabled={syncStatus === 'loading'}
-                      className={`press-sm flex items-center gap-1.5 h-7 px-3 rounded-full text-[10px] font-bold uppercase tracking-[0.14em] transition-colors ${
-                        syncStatus === 'ok'
-                          ? 'bg-green-500/15 text-green-400'
-                          : syncStatus === 'err'
-                          ? 'bg-destructive/15 text-destructive'
-                          : 'bg-white/[0.05] text-muted-foreground hover:text-primary hover:bg-primary/10'
-                      }`}
-                    >
-                      <RefreshCw size={11} className={syncStatus === 'loading' ? 'animate-spin' : ''} />
-                      {syncStatus === 'ok' ? 'Синхр.' : syncStatus === 'err' ? 'Ошибка' : 'Sheets'}
-                    </button>
-                  </Show>
+                  <div className="flex items-center gap-1.5">
+                    <Show when="signed-in">
+                      <button
+                        onClick={handleSyncMango}
+                        disabled={mangoSyncStatus === 'loading'}
+                        className={`press-sm flex items-center gap-1.5 h-7 px-3 rounded-full text-[10px] font-bold uppercase tracking-[0.14em] transition-colors ${
+                          mangoSyncStatus === 'ok'
+                            ? 'bg-green-500/15 text-green-400'
+                            : mangoSyncStatus === 'err' || mangoSyncStatus === 'expired'
+                            ? 'bg-destructive/15 text-destructive'
+                            : 'bg-white/[0.05] text-muted-foreground hover:text-primary hover:bg-primary/10'
+                        }`}
+                      >
+                        <RefreshCw size={11} className={mangoSyncStatus === 'loading' ? 'animate-spin' : ''} />
+                        {mangoSyncStatus === 'ok' ? 'Синхр.' : mangoSyncStatus === 'expired' ? 'Токен истёк' : mangoSyncStatus === 'err' ? 'Ошибка' : 'Mango'}
+                      </button>
+                      <button
+                        onClick={handleSyncSheet}
+                        disabled={syncStatus === 'loading'}
+                        className={`press-sm flex items-center gap-1.5 h-7 px-3 rounded-full text-[10px] font-bold uppercase tracking-[0.14em] transition-colors ${
+                          syncStatus === 'ok'
+                            ? 'bg-green-500/15 text-green-400'
+                            : syncStatus === 'err'
+                            ? 'bg-destructive/15 text-destructive'
+                            : 'bg-white/[0.05] text-muted-foreground hover:text-primary hover:bg-primary/10'
+                        }`}
+                      >
+                        <RefreshCw size={11} className={syncStatus === 'loading' ? 'animate-spin' : ''} />
+                        {syncStatus === 'ok' ? 'Синхр.' : syncStatus === 'err' ? 'Ошибка' : 'Sheets'}
+                      </button>
+                    </Show>
+                  </div>
                 </div>
                 <div className="grid grid-cols-2 gap-3">
                   <CounterField label="ПЗМ" value={state.pzm} onChange={v => updateField('pzm', v)} />
@@ -337,6 +378,13 @@ export default function MainApp() {
                   <Send size={11} />
                   TG
                 </button>
+                <button
+                  onClick={() => setMangoOpen(true)}
+                  className="press-sm flex items-center gap-1.5 h-8 px-3 rounded-full text-[10px] font-bold uppercase tracking-[0.14em] bg-white/[0.05] text-muted-foreground hover:text-primary hover:bg-primary/10 transition-colors"
+                >
+                  <Phone size={11} />
+                  Mango
+                </button>
                 <Show when="signed-in">
                   <button
                     onClick={() => setAutoOpen(true)}
@@ -435,8 +483,21 @@ export default function MainApp() {
         signature={signature}
         selectedReportType={tab}
       />
+      <MangoModal
+        open={mangoOpen}
+        onClose={() => setMangoOpen(false)}
+        isSignedIn={Boolean(userId)}
+      />
     </div>
   );
+}
+
+function formatTrafficSeconds(seconds: number): string {
+  const safeSeconds = Math.max(0, Math.round(seconds));
+  const hours = Math.floor(safeSeconds / 3600);
+  const minutes = Math.floor((safeSeconds % 3600) / 60);
+  const remainingSeconds = safeSeconds % 60;
+  return [hours, minutes, remainingSeconds].map((value) => String(value).padStart(2, '0')).join(':');
 }
 
 function NumberField({ label, value, onChange }: { label: string; value: number; onChange: (v: number) => void }) {

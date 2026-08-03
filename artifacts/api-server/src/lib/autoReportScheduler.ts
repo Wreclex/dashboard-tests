@@ -4,6 +4,7 @@ import cron from "node-cron";
 import {
   autoReportSchedules,
   db,
+  mangoCredentials,
   telegramChannels,
   userReportState,
 } from "@workspace/db";
@@ -16,6 +17,8 @@ import {
 } from "./reportText";
 import { getTodaySheetCounts } from "./sheetCounts";
 import { logger } from "./logger";
+import { getMangoKpi, MangoTokenExpiredError } from "./mangoKpi";
+import { formatMangoTraffic } from "./mangoKpiFormat";
 
 let isTickRunning = false;
 
@@ -23,10 +26,13 @@ let isTickRunning = false;
 const SHEETS_TIMEOUT_MS = 90_000;
 const TELEGRAM_TIMEOUT_MS = 90_000;
 
-// How long the initial lease covers: Sheets budget + overhead for DB reads,
-// report building, scheduling jitter, etc.  A peer cannot reclaim before this
-// window expires.
-const INITIAL_LEASE_MS = SHEETS_TIMEOUT_MS + 60_000; // 150 s
+// Hard wall-clock cap for the entire Mango KPI fetch (handshake + all polls).
+// Keeps the total Sheets + Mango time within the initial lease.
+const MANGO_SCHEDULER_BUDGET_MS = 30_000;
+
+// How long the initial lease covers: Sheets budget + Mango budget + overhead.
+// A peer cannot reclaim before this window expires.
+const INITIAL_LEASE_MS = SHEETS_TIMEOUT_MS + MANGO_SCHEDULER_BUDGET_MS + 60_000; // 180 s
 
 // Immediately before the Telegram call we extend the lease so it covers the
 // remaining Telegram budget plus small overhead.  This is the "pre-send gate":
@@ -166,7 +172,7 @@ async function sendDueReports(): Promise<void> {
           continue;
         }
 
-        // Build report text, optionally refreshing counters from Sheets.
+        // Build report text, optionally refreshing counters from Sheets and Mango.
         const state = stored.state as StoredReportState;
         const signature = stored.signature as StoredSignature;
         try {
@@ -176,6 +182,29 @@ async function sendDueReports(): Promise<void> {
           Object.assign(state, counts);
         } catch (err) {
           logger.warn({ err, scheduleId: schedule.id }, "Using saved counters — Sheets sync failed");
+        }
+        try {
+          const [mangoCredential] = await db
+            .select({ bearerToken: mangoCredentials.bearerToken })
+            .from(mangoCredentials)
+            .where(eq(mangoCredentials.userId, schedule.userId))
+            .limit(1);
+          if (mangoCredential) {
+            const mango = await getMangoKpi(mangoCredential.bearerToken, {
+              totalTimeoutMs: MANGO_SCHEDULER_BUDGET_MS,
+            });
+            state.kz = mango.calls;
+            state.trafikCurrent = formatMangoTraffic(mango.trafficSeconds);
+            await db
+              .update(userReportState)
+              .set({ state, updatedAt: new Date() })
+              .where(eq(userReportState.userId, schedule.userId));
+          }
+        } catch (err) {
+          const message = err instanceof MangoTokenExpiredError
+            ? "Mango Office token expired — using saved KPI"
+            : "Mango Office KPI sync failed — using saved KPI";
+          logger.warn({ err, scheduleId: schedule.id }, message);
         }
 
         // Pre-send gate: verify token + active + unexpired lease; extend to

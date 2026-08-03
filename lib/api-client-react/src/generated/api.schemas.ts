@@ -54,6 +54,22 @@ export interface TelegramSendResult {
   messageId?: number | null;
 }
 
+export interface MangoTokenInput {
+  /** @minLength 1 */
+  token: string;
+}
+
+export interface MangoStatus {
+  isConnected: boolean;
+}
+
+export interface MangoKpi {
+  /** @minimum 0 */
+  calls: number;
+  /** @minimum 0 */
+  trafficSeconds: number;
+}
+
 export interface ReportStateData {
   /** @minimum 0 */
   pzm: number;
