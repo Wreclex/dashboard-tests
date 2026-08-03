@@ -260,7 +260,14 @@ export async function fetchMangoKpi(
   try {
     hsRes = await fetchFn(MANGO_KPI_URL, {
       method: "POST",
-      headers: { Authorization: auth, "Content-Type": "application/json", Accept: "application/json" },
+      headers: {
+        Authorization: auth,
+        "Content-Type": "application/json",
+        Accept: "application/json",
+        Origin: "https://ccc.mango-office.ru",
+        Referer: "https://ccc.mango-office.ru/",
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/138.0.0.0 Safari/537.36",
+      },
       body: handshakeBody,
       signal: makeSignal(),
     });
@@ -309,6 +316,9 @@ export async function fetchMangoKpi(
     Authorization: auth,
     "Content-Type": "application/json",
     Accept: "application/json",
+    Origin: "https://ccc.mango-office.ru",
+    Referer: "https://ccc.mango-office.ru/",
+    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/138.0.0.0 Safari/537.36",
   };
 
   for (let attempt = 1; attempt <= MANGO_RESULT_POLL_ATTEMPTS; attempt++) {
