@@ -129,23 +129,25 @@ export const GetMangoStatusResponse = zod.object({
 
 
 /**
- * @summary Store the authenticated user's Mango Office bearer token
+ * Verifies credentials via headless-browser login before saving. May take up to ~60s.
+ * @summary Store the authenticated user's Mango Office login (email + password)
  */
 
 
 
-export const PutMangoTokenBody = zod.object({
-  "token": zod.string().min(1),
-  "refresh": zod.string().optional()
+
+export const PutMangoCredentialsBody = zod.object({
+  "email": zod.string().min(1),
+  "password": zod.string().min(1)
 })
 
-export const PutMangoTokenResponse = zod.void()
+export const PutMangoCredentialsResponse = zod.void()
 
 
 /**
- * @summary Remove the authenticated user's Mango Office bearer token
+ * @summary Remove the authenticated user's Mango Office credentials
  */
-export const DeleteMangoTokenResponse = zod.void()
+export const DeleteMangoCredentialsResponse = zod.void()
 
 
 /**

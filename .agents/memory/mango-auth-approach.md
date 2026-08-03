@@ -1,15 +1,15 @@
 ---
 name: Mango Office authentication approach
-description: Why we use email+password auto-sign-in instead of bearer token interception for Mango CCC
+description: Mango CCC auth uses server-side headless-browser login (playwright-core + system chromium); tokens from localStorage are useless server-side
 ---
 
 ## Rule
-Store the user's Mango CCC email + password (both AES-256-GCM encrypted in `mango_credentials`). On every KPI request, the backend automatically calls `POST https://api2.mangotele.com/v2/auth/sign-in` with `{ email, password }` to get a fresh Bearer token, then uses it for the KPI fetch.
+Store the user's Mango CCC email + password (AES-256-GCM in `mango_credentials`). The server logs in via headless Chromium (playwright-core, `executablePath` from `which chromium`, args `--no-sandbox --disable-dev-shm-usage`) on `ccc.mango-office.ru`, reads `auth_token`/`refresh_token` from localStorage, caches them encrypted in the same table. KPI fetch order: cached token → `auth.mango-office.ru/refresh` → browser re-login. Single-flight Map dedupes concurrent logins per user.
 
-**Why:** The Mango CCC dashboard (`ccc.mango-office.ru`) does NOT expose Authorization Bearer tokens in fetch/XHR request headers — it uses cookie-based auth internally. The bookmarklet approach of intercepting headers never catches any token. Email+password is the only autonomous (no-DevTools) option.
+**Why:** Mango SSO (`auth.mango-office.ru/sso/login`, OAuth PKCE) rejects direct API sign-in (code 1102). The `auth_token` from a human browser session gets HTTP 403 from `api2.mangotele.com` when used server-side (audience/IP binding) — bookmarklet/DevTools token extraction is a dead end. Only a server-side browser session produces working tokens.
 
 **How to apply:**
-- `MangoAuthError` (from `mangoAuth.ts`) is thrown when sign-in returns 400/401/403 — surface this as HTTP 401 with `{ error: "auth_failed" }` to the frontend.
-- The modal shows "Неверный логин или пароль" on `auth_failed` and prompts the user to re-enter.
-- Sign-in endpoint: `POST https://api2.mangotele.com/v2/auth/sign-in` body `{ "email": "...", "password": "..." }` → response `{ "token": "..." }`.
-- If Mango changes this endpoint path, adjust `MANGO_AUTH_URL` in `artifacts/api-server/src/lib/mangoAuth.ts`.
+- Login page selectors: `input[type="text"]`, `input[type="password"]`, `button[type="submit"]` on the SSO redirect page.
+- Browser login takes up to 60s; callers need a ≥65s budget (scheduler uses 120s).
+- `playwright-core` + `chromium-bidi` must stay in the esbuild `external` list in `artifacts/api-server/build.mjs` or the bundle breaks.
+- Migration 0003 cleared legacy rows; `bearer_token`-era data is gone. If Mango adds captcha/2FA for a user, login times out → 401 auth_failed; user must retry.

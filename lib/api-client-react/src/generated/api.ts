@@ -25,9 +25,9 @@ import type {
   AutoReportScheduleUpdate,
   GetSheetCountsParams,
   HealthStatus,
+  MangoCredentialsInput,
   MangoKpi,
   MangoStatus,
-  MangoTokenInput,
   SheetCounts,
   TelegramChannel,
   TelegramChannelInput,
@@ -665,25 +665,26 @@ export function useGetMangoStatus<TData = Awaited<ReturnType<typeof getMangoStat
 
 
 
-export const getPutMangoTokenUrl = () => {
+export const getPutMangoCredentialsUrl = () => {
 
 
 
 
-  return `/api/mango/token`
+  return `/api/mango/credentials`
 }
 
 /**
- * @summary Store the authenticated user's Mango Office bearer token
+ * Verifies credentials via headless-browser login before saving. May take up to ~60s.
+ * @summary Store the authenticated user's Mango Office login (email + password)
  */
-export const putMangoToken = async (mangoTokenInput: MangoTokenInput, options?: Parameters<typeof customFetch>[1]): Promise<void> => {
+export const putMangoCredentials = async (mangoCredentialsInput: MangoCredentialsInput, options?: Parameters<typeof customFetch>[1]): Promise<void> => {
 
-  return customFetch<void>(getPutMangoTokenUrl(),
+  return customFetch<void>(getPutMangoCredentialsUrl(),
   {
     ...options,
     method: 'PUT',
     headers: { 'Content-Type': 'application/json', ...options?.headers },
-    body: JSON.stringify(mangoTokenInput)
+    body: JSON.stringify(mangoCredentialsInput)
   }
 );}
 
@@ -691,11 +692,11 @@ export const putMangoToken = async (mangoTokenInput: MangoTokenInput, options?: 
 
 
 
-export const getPutMangoTokenMutationOptions = <TError = ErrorType<void>,
-    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof putMangoToken>>, TError,{data: BodyType<MangoTokenInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
-): UseMutationOptions<Awaited<ReturnType<typeof putMangoToken>>, TError,{data: BodyType<MangoTokenInput>}, TContext> => {
+export const getPutMangoCredentialsMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof putMangoCredentials>>, TError,{data: BodyType<MangoCredentialsInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof putMangoCredentials>>, TError,{data: BodyType<MangoCredentialsInput>}, TContext> => {
 
-const mutationKey = ['putMangoToken'];
+const mutationKey = ['putMangoCredentials'];
 const {mutation: mutationOptions, request: requestOptions} = options ?
       options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
       options
@@ -705,10 +706,10 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
 
 
 
-      const mutationFn: MutationFunction<Awaited<ReturnType<typeof putMangoToken>>, {data: BodyType<MangoTokenInput>}> = (props) => {
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof putMangoCredentials>>, {data: BodyType<MangoCredentialsInput>}> = (props) => {
           const {data} = props ?? {};
 
-          return  putMangoToken(data,requestOptions)
+          return  putMangoCredentials(data,requestOptions)
         }
 
 
@@ -718,38 +719,38 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
 
   return  { mutationFn, ...mutationOptions }}
 
-    export type PutMangoTokenMutationResult = NonNullable<Awaited<ReturnType<typeof putMangoToken>>>
-    export type PutMangoTokenMutationBody = BodyType<MangoTokenInput>
-    export type PutMangoTokenMutationError = ErrorType<void>
+    export type PutMangoCredentialsMutationResult = NonNullable<Awaited<ReturnType<typeof putMangoCredentials>>>
+    export type PutMangoCredentialsMutationBody = BodyType<MangoCredentialsInput>
+    export type PutMangoCredentialsMutationError = ErrorType<void>
 
     /**
- * @summary Store the authenticated user's Mango Office bearer token
+ * @summary Store the authenticated user's Mango Office login (email + password)
  */
-export const usePutMangoToken = <TError = ErrorType<void>,
-    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof putMangoToken>>, TError,{data: BodyType<MangoTokenInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+export const usePutMangoCredentials = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof putMangoCredentials>>, TError,{data: BodyType<MangoCredentialsInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
  ): UseMutationResult<
-        Awaited<ReturnType<typeof putMangoToken>>,
+        Awaited<ReturnType<typeof putMangoCredentials>>,
         TError,
-        {data: BodyType<MangoTokenInput>},
+        {data: BodyType<MangoCredentialsInput>},
         TContext
       > => {
-      return useMutation(getPutMangoTokenMutationOptions(options));
+      return useMutation(getPutMangoCredentialsMutationOptions(options));
     }
 
-export const getDeleteMangoTokenUrl = () => {
+export const getDeleteMangoCredentialsUrl = () => {
 
 
 
 
-  return `/api/mango/token`
+  return `/api/mango/credentials`
 }
 
 /**
- * @summary Remove the authenticated user's Mango Office bearer token
+ * @summary Remove the authenticated user's Mango Office credentials
  */
-export const deleteMangoToken = async ( options?: Parameters<typeof customFetch>[1]): Promise<void> => {
+export const deleteMangoCredentials = async ( options?: Parameters<typeof customFetch>[1]): Promise<void> => {
 
-  return customFetch<void>(getDeleteMangoTokenUrl(),
+  return customFetch<void>(getDeleteMangoCredentialsUrl(),
   {
     ...options,
     method: 'DELETE'
@@ -762,11 +763,11 @@ export const deleteMangoToken = async ( options?: Parameters<typeof customFetch>
 
 
 
-export const getDeleteMangoTokenMutationOptions = <TError = ErrorType<void>,
-    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof deleteMangoToken>>, TError,void, TContext>, request?: SecondParameter<typeof customFetch>}
-): UseMutationOptions<Awaited<ReturnType<typeof deleteMangoToken>>, TError,void, TContext> => {
+export const getDeleteMangoCredentialsMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof deleteMangoCredentials>>, TError,void, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof deleteMangoCredentials>>, TError,void, TContext> => {
 
-const mutationKey = ['deleteMangoToken'];
+const mutationKey = ['deleteMangoCredentials'];
 const {mutation: mutationOptions, request: requestOptions} = options ?
       options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
       options
@@ -776,10 +777,10 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
 
 
 
-      const mutationFn: MutationFunction<Awaited<ReturnType<typeof deleteMangoToken>>, void> = () => {
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof deleteMangoCredentials>>, void> = () => {
 
 
-          return  deleteMangoToken(requestOptions)
+          return  deleteMangoCredentials(requestOptions)
         }
 
 
@@ -789,22 +790,22 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
 
   return  { mutationFn, ...mutationOptions }}
 
-    export type DeleteMangoTokenMutationResult = NonNullable<Awaited<ReturnType<typeof deleteMangoToken>>>
+    export type DeleteMangoCredentialsMutationResult = NonNullable<Awaited<ReturnType<typeof deleteMangoCredentials>>>
 
-    export type DeleteMangoTokenMutationError = ErrorType<void>
+    export type DeleteMangoCredentialsMutationError = ErrorType<void>
 
     /**
- * @summary Remove the authenticated user's Mango Office bearer token
+ * @summary Remove the authenticated user's Mango Office credentials
  */
-export const useDeleteMangoToken = <TError = ErrorType<void>,
-    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof deleteMangoToken>>, TError,void, TContext>, request?: SecondParameter<typeof customFetch>}
+export const useDeleteMangoCredentials = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof deleteMangoCredentials>>, TError,void, TContext>, request?: SecondParameter<typeof customFetch>}
  ): UseMutationResult<
-        Awaited<ReturnType<typeof deleteMangoToken>>,
+        Awaited<ReturnType<typeof deleteMangoCredentials>>,
         TError,
         void,
         TContext
       > => {
-      return useMutation(getDeleteMangoTokenMutationOptions(options));
+      return useMutation(getDeleteMangoCredentialsMutationOptions(options));
     }
 
 export const getGetMangoKpiUrl = () => {

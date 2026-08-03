@@ -179,31 +179,34 @@ paths:
         "401":
           description: Unauthorized
 
-  /mango/token:
+  /mango/credentials:
     put:
-      operationId: putMangoToken
+      operationId: putMangoCredentials
       tags: [mango]
-      summary: Store the authenticated user's Mango Office bearer token
+      summary: Store the authenticated user's Mango Office login (email + password)
+      description: Verifies credentials via headless-browser login before saving. May take up to ~60s.
       requestBody:
         required: true
         content:
           application/json:
             schema:
-              $ref: "#/components/schemas/MangoTokenInput"
+              $ref: "#/components/schemas/MangoCredentialsInput"
       responses:
         "204":
-          description: Token stored
+          description: Credentials verified and stored
         "400":
-          description: Invalid token
+          description: Missing email or password
         "401":
-          description: Unauthorized
+          description: Mango rejected the credentials (auth_failed) or user unauthorized
+        "502":
+          description: Headless login failed (captcha/2FA/network)
     delete:
-      operationId: deleteMangoToken
+      operationId: deleteMangoCredentials
       tags: [mango]
-      summary: Remove the authenticated user's Mango Office bearer token
+      summary: Remove the authenticated user's Mango Office credentials
       responses:
         "204":
-          description: Token removed
+          description: Credentials removed
         "401":
           description: Unauthorized
 
@@ -415,15 +418,16 @@ components:
       required:
         - ok
 
-    MangoTokenInput:
+    MangoCredentialsInput:
       type: object
       properties:
-        token:
+        email:
           type: string
           minLength: 1
-        refresh:
+        password:
           type: string
-      required: [token]
+          minLength: 1
+      required: [email, password]
 
     MangoStatus:
       type: object

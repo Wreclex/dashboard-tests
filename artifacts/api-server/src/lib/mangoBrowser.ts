@@ -41,6 +41,7 @@ export type MangoBrowserTokens = { authToken: string; refreshToken: string };
 export async function mangoBrowserLogin(
   email: string,
   password: string,
+  timeoutMs: number = LOGIN_TIMEOUT_MS,
 ): Promise<MangoBrowserTokens> {
   const browser = await chromium
     .launch({ executablePath: chromiumPath(), args: ["--no-sandbox", "--disable-dev-shm-usage"] })
@@ -58,7 +59,7 @@ export async function mangoBrowserLogin(
       locale: "ru-RU",
     });
 
-    await page.goto(CCC_URL, { waitUntil: "domcontentloaded", timeout: LOGIN_TIMEOUT_MS });
+    await page.goto(CCC_URL, { waitUntil: "domcontentloaded", timeout: timeoutMs });
 
     // The unauthenticated app redirects to auth.mango-office.ru/sso/login.
     await page.waitForSelector('input[type="password"]', { timeout: 30_000 }).catch(() => {
@@ -71,7 +72,7 @@ export async function mangoBrowserLogin(
 
     // Wait for either: redirect back to ccc.mango-office.ru with tokens in
     // localStorage, or an error message on the auth page.
-    const deadline = Date.now() + LOGIN_TIMEOUT_MS;
+    const deadline = Date.now() + timeoutMs;
     while (Date.now() < deadline) {
       await page.waitForTimeout(1_000);
       const url = page.url();
@@ -94,7 +95,12 @@ export async function mangoBrowserLogin(
       // Still on the auth page — check for a visible error message.
       const errText = await page
         .evaluate(() => {
-          const el = document.querySelector(
+          const g = globalThis as {
+            document?: {
+              querySelector(s: string): { textContent?: string | null } | null;
+            };
+          };
+          const el = g.document?.querySelector(
             '.auth-loginpass__error, .dct-input__error, [class*="error"]',
           );
           const t = el?.textContent?.trim();
@@ -106,8 +112,17 @@ export async function mangoBrowserLogin(
       }
     }
 
+    // Still on the auth page after the deadline: wrong credentials or a
+    // captcha/2FA challenge. Either way the stored credentials did not log us in.
+    throw new MangoAuthError(
+      "Mango не принял логин/пароль или запросил капчу. Проверьте данные и попробуйте снова",
+    );
+  } catch (err) {
+    // Normalize Playwright operational failures (navigation timeouts, selector
+    // misses, crashed pages) into MangoKpiUnavailableError → HTTP 502.
+    if (err instanceof MangoAuthError || err instanceof MangoKpiUnavailableError) throw err;
     throw new MangoKpiUnavailableError(
-      "Mango login timed out — токены не появились за 60 секунд (возможна капча или 2FA)",
+      `Mango headless login failed: ${err instanceof Error ? err.message : String(err)}`,
     );
   } finally {
     await browser.close().catch(() => {});

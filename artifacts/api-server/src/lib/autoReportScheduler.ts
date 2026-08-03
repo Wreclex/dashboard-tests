@@ -28,7 +28,8 @@ const TELEGRAM_TIMEOUT_MS = 90_000;
 
 // Hard wall-clock cap for the entire Mango KPI fetch (handshake + all polls).
 // Keeps the total Sheets + Mango time within the initial lease.
-const MANGO_SCHEDULER_BUDGET_MS = 30_000;
+// Must cover a worst-case headless-browser re-login (~60s) plus the KPI fetch.
+const MANGO_SCHEDULER_BUDGET_MS = 120_000;
 
 // How long the initial lease covers: Sheets budget + Mango budget + overhead.
 // A peer cannot reclaim before this window expires.
@@ -185,13 +186,14 @@ async function sendDueReports(): Promise<void> {
         }
         try {
           const [mangoCredential] = await db
-            .select({ authToken: mangoCredentials.authToken, refreshToken: mangoCredentials.refreshToken })
+            .select()
             .from(mangoCredentials)
             .where(eq(mangoCredentials.userId, schedule.userId))
             .limit(1);
           if (mangoCredential) {
-            const mango = await getMangoKpi(mangoCredential.authToken, mangoCredential.refreshToken, {
+            const mango = await getMangoKpi(mangoCredential, {
               totalTimeoutMs: MANGO_SCHEDULER_BUDGET_MS,
+              userId: schedule.userId,
             });
             state.kz = mango.calls;
             state.trafikCurrent = formatMangoTraffic(mango.trafficSeconds);

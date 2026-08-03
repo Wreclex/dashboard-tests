@@ -6,8 +6,9 @@
  * OpenAPI spec version: 0.1.0
  */
 
-export interface MangoTokenInput {
+export interface MangoCredentialsInput {
   /** @minLength 1 */
-  token: string;
-  refresh?: string;
+  email: string;
+  /** @minLength 1 */
+  password: string;
 }
