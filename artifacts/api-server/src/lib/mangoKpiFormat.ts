@@ -70,6 +70,23 @@ export class MangoTokenExpiredError extends Error {
   }
 }
 
+/** Mango auth result codes: 1103 token dead, 1114 expired, 0 = JWT parse error. */
+const MANGO_AUTH_FAILURE_CODES = new Set([0, 401, 403, 1103, 1114]);
+
+/**
+ * Throws MangoTokenExpiredError when a 200-body carries an auth failure code.
+ * Call only after KPI parsing has failed for the payload.
+ */
+function throwIfMangoAuthBody(payload: unknown): void {
+  if (payload === null || typeof payload !== "object") return;
+  const code = (payload as { code?: unknown }).code;
+  if (typeof code === "number" && MANGO_AUTH_FAILURE_CODES.has(code)) {
+    throw new MangoTokenExpiredError(
+      `Mango отклонил токен (code ${code}): ${JSON.stringify(payload).slice(0, 200)}`,
+    );
+  }
+}
+
 export class MangoKpiUnavailableError extends Error {
   constructor(message = "Mango Office did not return recognizable KPI data") {
     super(message);
@@ -235,7 +252,19 @@ export async function fetchMangoKpi(
     return AbortSignal.timeout(effectiveMs);
   }
 
-  const auth = `Bearer ${trimmed}`;
+  // Mango api2 authenticates via the `jwt_token` QUERY PARAMETER (evidence:
+  // the CCC SPA calls e.g. /v2/ccc/timezone/get?jwt_token=...&app=webcov, and
+  // garbage in that param yields a JWT parse error while Bearer is ignored
+  // with a bare 403). Authorization headers are NOT used.
+  const authedUrl = (base: string) =>
+    `${base}?jwt_token=${encodeURIComponent(trimmed)}&app=webcov`;
+  const apiHeaders = {
+    "Content-Type": "application/json",
+    Accept: "application/json",
+    Origin: "https://ccc.mango-office.ru",
+    Referer: "https://ccc.mango-office.ru/",
+    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/138.0.0.0 Safari/537.36",
+  };
   const today = todayMoscow();
 
   const handshakeBody = JSON.stringify({
@@ -258,16 +287,9 @@ export async function fetchMangoKpi(
   // ── Step 1: POST to oper-kpi2 ─────────────────────────────────────────────
   let hsRes: Response;
   try {
-    hsRes = await fetchFn(MANGO_KPI_URL, {
+    hsRes = await fetchFn(authedUrl(MANGO_KPI_URL), {
       method: "POST",
-      headers: {
-        Authorization: auth,
-        "Content-Type": "application/json",
-        Accept: "application/json",
-        Origin: "https://ccc.mango-office.ru",
-        Referer: "https://ccc.mango-office.ru/",
-        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/138.0.0.0 Safari/537.36",
-      },
+      headers: apiHeaders,
       body: handshakeBody,
       signal: makeSignal(),
     });
@@ -305,6 +327,11 @@ export async function fetchMangoKpi(
 
   const key = extractReportKey(hsPayload);
   if (!key) {
+    // No usable data — check whether Mango encoded an auth failure in the body
+    // (HTTP 200 + {"code":403,...}, or {"code":0,"Wrong number of segments"}
+    // for a malformed JWT). Only classify AFTER KPI parsing failed so a valid
+    // payload that happens to carry a top-level `code` isn't misread.
+    throwIfMangoAuthBody(hsPayload);
     throw new MangoKpiUnavailableError(
       "Mango handshake contained no report key and no KPI data",
     );
@@ -312,14 +339,6 @@ export async function fetchMangoKpi(
 
   // ── Step 2: Poll oper-kpi2/result until the report is ready ───────────────
   const resultBody = JSON.stringify({ key });
-  const resultHeaders = {
-    Authorization: auth,
-    "Content-Type": "application/json",
-    Accept: "application/json",
-    Origin: "https://ccc.mango-office.ru",
-    Referer: "https://ccc.mango-office.ru/",
-    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/138.0.0.0 Safari/537.36",
-  };
 
   for (let attempt = 1; attempt <= MANGO_RESULT_POLL_ATTEMPTS; attempt++) {
     if (attempt > 1) {
@@ -337,9 +356,9 @@ export async function fetchMangoKpi(
     let resRes: Response;
     try {
       // makeSignal() re-evaluates remaining budget immediately before this fetch.
-      resRes = await fetchFn(MANGO_KPI_RESULT_URL, {
+      resRes = await fetchFn(authedUrl(MANGO_KPI_RESULT_URL), {
         method: "POST",
-        headers: resultHeaders,
+        headers: apiHeaders,
         body: resultBody,
         signal: makeSignal(),
       });
@@ -379,6 +398,9 @@ export async function fetchMangoKpi(
 
     const kpi = parseMangoOperKpi2Response(resPayload);
     if (kpi) return kpi;
+    // Auth failure encoded in a 200 body — bail to the refresh/re-login tier
+    // instead of polling until the generic "not available" error.
+    throwIfMangoAuthBody(resPayload);
     // Not ready yet — poll again.
   }
 

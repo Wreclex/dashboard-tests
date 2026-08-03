@@ -81,6 +81,50 @@ router.put("/credentials", requireAuth, async (req: any, res): Promise<void> => 
   }
 });
 
+/**
+ * Store session tokens pasted manually from the user's own Mango CCC browser
+ * session (localStorage auth_token/refresh_token). Works around the
+ * single-session enforcement that kicks headless logins out.
+ */
+router.put("/token", requireAuth, async (req: any, res): Promise<void> => {
+  const { token, refresh } = req.body ?? {};
+  if (typeof token !== "string" || !token.trim()) {
+    res.status(400).json({ error: "token is required" });
+    return;
+  }
+  const normalize = (raw: string): string =>
+    raw.trim().replace(/^"+|"+$/g, "").replace(/^Bearer\s+/i, "").trim();
+  const authToken = normalize(token);
+  const refreshToken = typeof refresh === "string" && normalize(refresh) ? normalize(refresh) : authToken;
+  if (!authToken) {
+    res.status(400).json({ error: "token is required" });
+    return;
+  }
+
+  try {
+    const set = {
+      authToken: encryptToken(authToken),
+      refreshToken: encryptToken(refreshToken),
+      updatedAt: new Date(),
+    };
+    await db
+      .insert(mangoCredentials)
+      .values({
+        userId: req.userId,
+        // email/password are NOT NULL; a token-only row stores empty creds and
+        // simply can't use the headless re-login tier until creds are added.
+        email: encryptToken(""),
+        password: encryptToken(""),
+        ...set,
+      })
+      .onConflictDoUpdate({ target: mangoCredentials.userId, set });
+    res.status(204).send();
+  } catch (err) {
+    req.log.error({ err }, "Failed to store Mango Office token");
+    res.status(500).json({ error: "Internal server error" });
+  }
+});
+
 router.delete("/credentials", requireAuth, async (req: any, res): Promise<void> => {
   try {
     await db.delete(mangoCredentials).where(eq(mangoCredentials.userId, req.userId));

@@ -54,6 +54,12 @@ export interface TelegramSendResult {
   messageId?: number | null;
 }
 
+export interface MangoTokenInput {
+  /** @minLength 1 */
+  token: string;
+  refresh?: string;
+}
+
 export interface MangoCredentialsInput {
   /** @minLength 1 */
   email: string;

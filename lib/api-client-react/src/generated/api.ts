@@ -28,6 +28,7 @@ import type {
   MangoCredentialsInput,
   MangoKpi,
   MangoStatus,
+  MangoTokenInput,
   SheetCounts,
   TelegramChannel,
   TelegramChannelInput,
@@ -806,6 +807,77 @@ export const useDeleteMangoCredentials = <TError = ErrorType<void>,
         TContext
       > => {
       return useMutation(getDeleteMangoCredentialsMutationOptions(options));
+    }
+
+export const getPutMangoTokenUrl = () => {
+
+
+
+
+  return `/api/mango/token`
+}
+
+/**
+ * @summary Store Mango session tokens pasted from the user's own browser session
+ */
+export const putMangoToken = async (mangoTokenInput: MangoTokenInput, options?: Parameters<typeof customFetch>[1]): Promise<void> => {
+
+  return customFetch<void>(getPutMangoTokenUrl(),
+  {
+    ...options,
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(mangoTokenInput)
+  }
+);}
+
+
+
+
+
+export const getPutMangoTokenMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof putMangoToken>>, TError,{data: BodyType<MangoTokenInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof putMangoToken>>, TError,{data: BodyType<MangoTokenInput>}, TContext> => {
+
+const mutationKey = ['putMangoToken'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof putMangoToken>>, {data: BodyType<MangoTokenInput>}> = (props) => {
+          const {data} = props ?? {};
+
+          return  putMangoToken(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type PutMangoTokenMutationResult = NonNullable<Awaited<ReturnType<typeof putMangoToken>>>
+    export type PutMangoTokenMutationBody = BodyType<MangoTokenInput>
+    export type PutMangoTokenMutationError = ErrorType<void>
+
+    /**
+ * @summary Store Mango session tokens pasted from the user's own browser session
+ */
+export const usePutMangoToken = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof putMangoToken>>, TError,{data: BodyType<MangoTokenInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof putMangoToken>>,
+        TError,
+        {data: BodyType<MangoTokenInput>},
+        TContext
+      > => {
+      return useMutation(getPutMangoTokenMutationOptions(options));
     }
 
 export const getGetMangoKpiUrl = () => {

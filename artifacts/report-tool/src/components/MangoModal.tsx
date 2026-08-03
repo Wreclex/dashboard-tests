@@ -5,10 +5,14 @@ import {
   useGetMangoStatus,
   useGetMangoKpi,
   usePutMangoCredentials,
+  usePutMangoToken,
   useDeleteMangoCredentials,
   getGetMangoStatusQueryKey,
   getGetMangoKpiQueryKey,
 } from '@workspace/api-client-react';
+
+/** One-liner for the Mango tab DevTools console — copies "auth||refresh" to clipboard. */
+const TOKEN_SNIPPET = `copy(localStorage.getItem('auth_token')+'||'+localStorage.getItem('refresh_token'))`;
 
 interface Props {
   open: boolean;
@@ -33,6 +37,8 @@ export default function MangoModal({ open, onClose, isSignedIn }: Props) {
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState('');
   const [authFailed, setAuthFailed] = useState(false);
+  const [tokenInput, setTokenInput] = useState('');
+  const [snippetCopied, setSnippetCopied] = useState(false);
 
   const statusQuery = useGetMangoStatus({
     query: { enabled: open && isSignedIn, queryKey: getGetMangoStatusQueryKey() },
@@ -43,6 +49,7 @@ export default function MangoModal({ open, onClose, isSignedIn }: Props) {
   });
 
   const putCredentials = usePutMangoCredentials();
+  const putToken = usePutMangoToken();
   const deleteCredentials = useDeleteMangoCredentials();
 
   const status = statusQuery.data;
@@ -101,6 +108,24 @@ export default function MangoModal({ open, onClose, isSignedIn }: Props) {
     }
   };
 
+  const handleSaveToken = async () => {
+    setError('');
+    const raw = tokenInput.trim();
+    const sep = raw.indexOf('||');
+    const token = (sep !== -1 ? raw.slice(0, sep) : raw).trim().replace(/^"+|"+$/g, '');
+    const refresh = sep !== -1 ? raw.slice(sep + 2).trim().replace(/^"+|"+$/g, '') : undefined;
+    if (!token) return;
+    try {
+      await putToken.mutateAsync({ data: { token, refresh } });
+      await queryClient.invalidateQueries({ queryKey: getGetMangoStatusQueryKey() });
+      queryClient.setQueryData(getGetMangoKpiQueryKey(), null);
+      setTokenInput('');
+      setAuthFailed(false);
+    } catch {
+      setError('Не удалось сохранить токен');
+    }
+  };
+
   const handleDelete = async () => {
     try {
       await deleteCredentials.mutateAsync();
@@ -127,7 +152,7 @@ export default function MangoModal({ open, onClose, isSignedIn }: Props) {
   };
 
   const isLoading =
-    statusQuery.isLoading || putCredentials.isPending ||
+    statusQuery.isLoading || putCredentials.isPending || putToken.isPending ||
     deleteCredentials.isPending || kpiQuery.isFetching;
   const needsCredentials = !status?.isConnected || authFailed;
 
@@ -209,6 +234,44 @@ export default function MangoModal({ open, onClose, isSignedIn }: Props) {
                 <p className="text-[10px] text-muted-foreground/60 text-center leading-relaxed">
                   Данные хранятся в зашифрованном виде и используются только для входа в Mango
                 </p>
+              </div>
+
+              {/* Manual token paste — works even when headless login is blocked */}
+              <div className="flex flex-col gap-3 p-4 rounded-2xl bg-white/[0.04] border border-white/[0.06]">
+                <span className="text-xs font-semibold text-foreground">Или вставьте токен из своего браузера</span>
+                <p className="text-[11px] text-muted-foreground leading-relaxed">
+                  Надёжнее всего: откройте{' '}
+                  <a href="https://ccc.mango-office.ru" target="_blank" rel="noreferrer" className="text-primary underline underline-offset-2">ccc.mango-office.ru</a>{' '}
+                  (войдите), нажмите F12 → Console, вставьте команду ниже и Enter — токен скопируется сам.
+                </p>
+                <button
+                  onClick={() => {
+                    navigator.clipboard.writeText(TOKEN_SNIPPET);
+                    setSnippetCopied(true);
+                    setTimeout(() => setSnippetCopied(false), 2000);
+                  }}
+                  className="press-sm flex items-center justify-center gap-2 w-full h-9 rounded-xl bg-white/[0.06] hover:bg-white/[0.1] transition-colors text-[11px] font-semibold text-foreground"
+                >
+                  {snippetCopied ? '✓ Скопировано' : 'Скопировать команду для консоли'}
+                </button>
+                <div className="flex items-center rounded-2xl h-12 px-3 bg-white/[0.04] border border-white/[0.06] focus-within:border-primary/40 focus-within:bg-white/[0.06] transition-colors">
+                  <input
+                    type="password"
+                    value={tokenInput}
+                    onChange={e => setTokenInput(e.target.value)}
+                    onKeyDown={e => e.key === 'Enter' && handleSaveToken()}
+                    placeholder="Вставьте токен сюда..."
+                    className="flex-1 bg-transparent text-foreground text-sm outline-none px-1 font-mono"
+                  />
+                </div>
+                <button
+                  onClick={handleSaveToken}
+                  disabled={isLoading || !tokenInput.trim()}
+                  className="press-spring h-11 rounded-2xl text-[12px] font-bold text-primary-foreground disabled:opacity-40"
+                  style={{ background: 'linear-gradient(180deg, hsl(22 100% 56%), hsl(22 100% 44%))' }}
+                >
+                  {putToken.isPending ? 'Сохранение...' : 'Сохранить токен'}
+                </button>
               </div>
             </div>
           ) : (

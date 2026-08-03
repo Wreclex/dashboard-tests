@@ -4,9 +4,9 @@ description: Mango CCC auth uses server-side headless-browser login (playwright-
 ---
 
 ## Rule
-Store the user's Mango CCC email + password (AES-256-GCM in `mango_credentials`). The server logs in via headless Chromium (playwright-core, `executablePath` from `which chromium`, args `--no-sandbox --disable-dev-shm-usage`) on `ccc.mango-office.ru`, reads `auth_token`/`refresh_token` from localStorage, caches them encrypted in the same table. KPI fetch order: cached token → `auth.mango-office.ru/refresh` → browser re-login. Single-flight Map dedupes concurrent logins per user.
+`api2.mangotele.com` authenticates via the **`jwt_token` query parameter** (`?jwt_token=<JWT>&app=webcov`), NOT `Authorization: Bearer` (Bearer is ignored → bare 403; a bad jwt_token yields `{"code":0,"Wrong number of segments"}` = JWT parse error). Mango CCC also enforces **single-session**: a headless login succeeds but is kicked out within seconds (`POST /logoff`) while the user is logged into CCC themselves. Therefore: primary path = user pastes `auth_token||refresh_token` from their own session (DevTools console one-liner), server refreshes via `auth.mango-office.ru/refresh`; headless-browser login (email+password, playwright-core) is only a fallback and fails whenever the user is concurrently logged in.
 
-**Why:** Mango SSO (`auth.mango-office.ru/sso/login`, OAuth PKCE) rejects direct API sign-in (code 1102). The `auth_token` from a human browser session gets HTTP 403 from `api2.mangotele.com` when used server-side (audience/IP binding) — bookmarklet/DevTools token extraction is a dead end. Only a server-side browser session produces working tokens.
+**Why:** Proven by live network capture (Aug 2026): CCC SPA calls api2 with `?jwt_token=`, and our headless session got logged off by the concurrent user session.
 
 **How to apply:**
 - Login page selectors: `input[type="text"]`, `input[type="password"]`, `button[type="submit"]` on the SSO redirect page.

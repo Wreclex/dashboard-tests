@@ -14,6 +14,7 @@ export * from './healthStatus';
 export * from './mangoCredentialsInput';
 export * from './mangoKpi';
 export * from './mangoStatus';
+export * from './mangoTokenInput';
 export * from './reportSignature';
 export * from './reportStateData';
 export * from './sheetCounts';

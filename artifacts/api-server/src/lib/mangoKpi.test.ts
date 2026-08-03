@@ -204,8 +204,11 @@ test("fetchMangoKpi: two-step protocol — POST handshake then POST result", asy
 
   assert.deepEqual(result, { calls: 55, trafficSeconds: 3300 });
   assert.equal(calls.length, 2);
-  // Step 1: handshake to oper-kpi2
-  assert.equal(calls[0]!.url, MANGO_KPI_URL);
+  // Step 1: handshake to oper-kpi2 — authenticated via jwt_token query param
+  const url0 = new URL(calls[0]!.url);
+  assert.equal(url0.origin + url0.pathname, MANGO_KPI_URL);
+  assert.equal(url0.searchParams.get("jwt_token"), "my-token");
+  assert.equal(url0.searchParams.get("app"), "webcov");
   const hsBody = calls[0]!.body as Record<string, unknown>;
   assert.ok(hsBody["date_from"], "handshake must include date_from");
   assert.ok(hsBody["date_until"], "handshake must include date_until");
@@ -213,8 +216,11 @@ test("fetchMangoKpi: two-step protocol — POST handshake then POST result", asy
   assert.equal(hsBody["time_from"], "00:00:00");
   assert.equal(hsBody["time_until"], "23:59:59");
   assert.equal(hsBody["time_zone_iana_id"], "Europe/Moscow");
-  // Step 2: result endpoint with the report key
-  assert.equal(calls[1]!.url, MANGO_KPI_RESULT_URL);
+  // Step 2: result endpoint with the report key, also jwt_token-authenticated
+  const url1 = new URL(calls[1]!.url);
+  assert.equal(url1.origin + url1.pathname, MANGO_KPI_RESULT_URL);
+  assert.equal(url1.searchParams.get("jwt_token"), "my-token");
+  assert.equal(url1.searchParams.get("app"), "webcov");
   assert.equal((calls[1]!.body as Record<string, unknown>)["key"], "report-key-xyz");
 });
 

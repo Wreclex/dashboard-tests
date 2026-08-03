@@ -210,6 +210,25 @@ paths:
         "401":
           description: Unauthorized
 
+  /mango/token:
+    put:
+      operationId: putMangoToken
+      tags: [mango]
+      summary: Store Mango session tokens pasted from the user's own browser session
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/MangoTokenInput"
+      responses:
+        "204":
+          description: Tokens stored
+        "400":
+          description: Missing token
+        "401":
+          description: Unauthorized
+
   /mango/kpi:
     get:
       operationId: getMangoKpi
@@ -417,6 +436,16 @@ components:
           type: ["number", "null"]
       required:
         - ok
+
+    MangoTokenInput:
+      type: object
+      properties:
+        token:
+          type: string
+          minLength: 1
+        refresh:
+          type: string
+      required: [token]
 
     MangoCredentialsInput:
       type: object

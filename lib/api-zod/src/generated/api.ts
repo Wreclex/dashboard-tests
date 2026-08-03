@@ -151,6 +151,20 @@ export const DeleteMangoCredentialsResponse = zod.void()
 
 
 /**
+ * @summary Store Mango session tokens pasted from the user's own browser session
+ */
+
+
+
+export const PutMangoTokenBody = zod.object({
+  "token": zod.string().min(1),
+  "refresh": zod.string().optional()
+})
+
+export const PutMangoTokenResponse = zod.void()
+
+
+/**
  * @summary Fetch today's Mango Office calls and traffic duration
  */
 export const getMangoKpiResponseCallsMin = 0;
