@@ -14,6 +14,8 @@ tags:
     description: Telegram channel management and message delivery
   - name: sheets
     description: Google Sheets data sync
+  - name: auto-reports
+    description: Scheduled Telegram report delivery
 paths:
   /healthz:
     get:
@@ -160,6 +162,93 @@ paths:
         "502":
           description: Telegram API error
 
+  /state:
+    post:
+      operationId: saveUserReportState
+      tags: [auto-reports]
+      summary: Save the authenticated user's current report state for scheduled delivery
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UserReportStateInput"
+      responses:
+        "204":
+          description: State saved
+        "401":
+          description: Unauthorized
+
+  /auto-reports:
+    get:
+      operationId: getAutoReportSchedule
+      tags: [auto-reports]
+      summary: Get the authenticated user's scheduled report configuration
+      responses:
+        "200":
+          description: Current schedule, or null if it has not been configured
+          content:
+            application/json:
+              schema:
+                oneOf:
+                  - $ref: "#/components/schemas/AutoReportSchedule"
+                  - type: "null"
+        "401":
+          description: Unauthorized
+    post:
+      operationId: createAutoReportSchedule
+      tags: [auto-reports]
+      summary: Create or activate the authenticated user's scheduled report
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AutoReportScheduleInput"
+      responses:
+        "200":
+          description: Schedule saved
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AutoReportSchedule"
+        "400":
+          description: Invalid input or channel
+        "401":
+          description: Unauthorized
+    patch:
+      operationId: updateAutoReportSchedule
+      tags: [auto-reports]
+      summary: Update the authenticated user's scheduled report
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AutoReportScheduleUpdate"
+      responses:
+        "200":
+          description: Schedule updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AutoReportSchedule"
+        "401":
+          description: Unauthorized
+        "404":
+          description: Schedule not found
+    delete:
+      operationId: deleteAutoReportSchedule
+      tags: [auto-reports]
+      summary: Deactivate the authenticated user's scheduled report
+      responses:
+        "204":
+          description: Schedule deactivated
+        "401":
+          description: Unauthorized
+        "404":
+          description: Schedule not found
+
 components:
   schemas:
     HealthStatus:
@@ -260,3 +349,76 @@ components:
           type: ["number", "null"]
       required:
         - ok
+
+    ReportStateData:
+      type: object
+      properties:
+        pzm: { type: number, minimum: 0 }
+        psm: { type: number, minimum: 0 }
+        pstl: { type: number, minimum: 0 }
+        vstl: { type: number, minimum: 0 }
+        dozh: { type: number, minimum: 0 }
+        trafikPlan: { type: string }
+        trafikCurrent: { type: string }
+        kz: { type: number, minimum: 0 }
+        prihod: { type: string }
+        uhod: { type: string }
+        postupleniya: { type: number, minimum: 0 }
+        itogoFact: { type: number, minimum: 0 }
+        itogoPlan: { type: number, minimum: 0 }
+        vypolnenie: { type: number, minimum: 0 }
+        financesEnabled: { type: boolean }
+      required: [pzm, psm, pstl, vstl, dozh, trafikPlan, trafikCurrent, kz, prihod, uhod, postupleniya, itogoFact, itogoPlan, vypolnenie, financesEnabled]
+
+    ReportSignature:
+      type: object
+      properties:
+        tag1: { type: string, minLength: 1 }
+        tag2: { type: string, minLength: 1 }
+        mention: { type: string, minLength: 1 }
+      required: [tag1, tag2, mention]
+
+    UserReportStateInput:
+      type: object
+      properties:
+        state:
+          $ref: "#/components/schemas/ReportStateData"
+        signature:
+          $ref: "#/components/schemas/ReportSignature"
+      required: [state, signature]
+
+    AutoReportScheduleInput:
+      type: object
+      properties:
+        channelId: { type: number, minimum: 1 }
+        intervalMinutes: { type: number, minimum: 1, maximum: 10 }
+        reportType: { type: number, minimum: 0, maximum: 2 }
+        isActive: { type: boolean }
+      required: [channelId, intervalMinutes, reportType, isActive]
+
+    AutoReportScheduleUpdate:
+      type: object
+      properties:
+        channelId: { type: number, minimum: 1 }
+        intervalMinutes: { type: number, minimum: 1, maximum: 10 }
+        reportType: { type: number, minimum: 0, maximum: 2 }
+        isActive: { type: boolean }
+
+    AutoReportSchedule:
+      type: object
+      properties:
+        id: { type: number }
+        channelId: { type: number }
+        intervalMinutes: { type: number }
+        reportType: { type: number }
+        isActive: { type: boolean }
+        lastSentAt:
+          type: ["string", "null"]
+          format: date-time
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+      required: [id, channelId, intervalMinutes, reportType, isActive, lastSentAt, createdAt, updatedAt]

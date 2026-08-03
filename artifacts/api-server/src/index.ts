@@ -1,6 +1,7 @@
 import app from "./app";
 import { logger } from "./lib/logger";
 import { runMigrations } from "./lib/migrate";
+import { startAutoReportScheduler } from "./lib/autoReportScheduler";
 
 const rawPort = process.env["PORT"];
 
@@ -24,6 +25,7 @@ runMigrations()
         process.exit(1);
       }
       logger.info({ port }, "Server listening");
+      startAutoReportScheduler();
     });
   })
   .catch((err) => {

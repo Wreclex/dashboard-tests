@@ -54,6 +54,92 @@ export interface TelegramSendResult {
   messageId?: number | null;
 }
 
+export interface ReportStateData {
+  /** @minimum 0 */
+  pzm: number;
+  /** @minimum 0 */
+  psm: number;
+  /** @minimum 0 */
+  pstl: number;
+  /** @minimum 0 */
+  vstl: number;
+  /** @minimum 0 */
+  dozh: number;
+  trafikPlan: string;
+  trafikCurrent: string;
+  /** @minimum 0 */
+  kz: number;
+  prihod: string;
+  uhod: string;
+  /** @minimum 0 */
+  postupleniya: number;
+  /** @minimum 0 */
+  itogoFact: number;
+  /** @minimum 0 */
+  itogoPlan: number;
+  /** @minimum 0 */
+  vypolnenie: number;
+  financesEnabled: boolean;
+}
+
+export interface ReportSignature {
+  /** @minLength 1 */
+  tag1: string;
+  /** @minLength 1 */
+  tag2: string;
+  /** @minLength 1 */
+  mention: string;
+}
+
+export interface UserReportStateInput {
+  state: ReportStateData;
+  signature: ReportSignature;
+}
+
+export interface AutoReportScheduleInput {
+  /** @minimum 1 */
+  channelId: number;
+  /**
+     * @minimum 1
+     * @maximum 10
+     */
+  intervalMinutes: number;
+  /**
+     * @minimum 0
+     * @maximum 2
+     */
+  reportType: number;
+  isActive: boolean;
+}
+
+export interface AutoReportScheduleUpdate {
+  /** @minimum 1 */
+  channelId?: number;
+  /**
+     * @minimum 1
+     * @maximum 10
+     */
+  intervalMinutes?: number;
+  /**
+     * @minimum 0
+     * @maximum 2
+     */
+  reportType?: number;
+  isActive?: boolean;
+}
+
+export interface AutoReportSchedule {
+  id: number;
+  channelId: number;
+  intervalMinutes: number;
+  reportType: number;
+  isActive: boolean;
+  /** @nullable */
+  lastSentAt: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
 export type GetSheetCountsParams = {
 /**
  * Manager name to filter by (column K). Normalized match — spaces and case ignored.

@@ -1,7 +1,7 @@
 import { Router } from "express";
 import { getAuth } from "@clerk/express";
 import { db } from "@workspace/db";
-import { telegramChannels } from "@workspace/db";
+import { autoReportSchedules, telegramChannels } from "@workspace/db";
 import { eq, and } from "drizzle-orm";
 import { encryptToken, decryptToken } from "../lib/encrypt";
 import {
@@ -102,21 +102,51 @@ router.put("/channels/:id", requireAuth, async (req: any, res) => {
       updates.botToken = encryptToken(parsed.data.botToken);
     }
 
-    const [row] = await db
-      .update(telegramChannels)
-      .set(updates)
-      .where(
-        and(
-          eq(telegramChannels.id, params.data.id),
-          eq(telegramChannels.userId, req.userId)
+    // Delivery-affecting fields: chatId and botToken determine the actual
+    // Telegram destination.  When either changes, invalidate any in-flight
+    // scheduler claim for schedules using this channel — same fencing pattern
+    // used for auto-report PATCH and channel deletion — so the next delivery
+    // uses the updated credentials.
+    const deliveryFieldChanged =
+      parsed.data.chatId !== undefined ||
+      (parsed.data.botToken !== undefined && parsed.data.botToken.length > 0);
+
+    const row = await db.transaction(async (tx) => {
+      if (deliveryFieldChanged) {
+        await tx
+          .update(autoReportSchedules)
+          .set({
+            deliveryLeaseUntil: null,
+            deliveryLeaseToken: null,
+            nextRunAt: new Date(Date.now() + 60_000), // brief delay so next tick re-reads fresh channel
+            updatedAt: new Date(),
+          })
+          .where(
+            and(
+              eq(autoReportSchedules.channelId, params.data.id),
+              eq(autoReportSchedules.userId, req.userId),
+              eq(autoReportSchedules.isActive, true),
+            ),
+          );
+      }
+
+      const [updated] = await tx
+        .update(telegramChannels)
+        .set(updates)
+        .where(
+          and(
+            eq(telegramChannels.id, params.data.id),
+            eq(telegramChannels.userId, req.userId),
+          ),
         )
-      )
-      .returning({
-        id: telegramChannels.id,
-        name: telegramChannels.name,
-        chatId: telegramChannels.chatId,
-        createdAt: telegramChannels.createdAt,
-      });
+        .returning({
+          id: telegramChannels.id,
+          name: telegramChannels.name,
+          chatId: telegramChannels.chatId,
+          createdAt: telegramChannels.createdAt,
+        });
+      return updated;
+    });
 
     if (!row) {
       return res.status(404).json({ error: "Channel not found" });
@@ -140,19 +170,28 @@ router.delete("/channels/:id", requireAuth, async (req: any, res) => {
   }
 
   try {
-    const result = await db
-      .delete(telegramChannels)
-      .where(
-        and(
-          eq(telegramChannels.id, params.data.id),
-          eq(telegramChannels.userId, req.userId)
+    const result = await db.transaction(async (tx) => {
+      await tx
+        .update(autoReportSchedules)
+        .set({ isActive: false, nextRunAt: null, deliveryLeaseUntil: null, deliveryLeaseToken: null, updatedAt: new Date() })
+        .where(
+          and(
+            eq(autoReportSchedules.channelId, params.data.id),
+            eq(autoReportSchedules.userId, req.userId),
+          ),
+        );
+      return tx
+        .delete(telegramChannels)
+        .where(
+          and(
+            eq(telegramChannels.id, params.data.id),
+            eq(telegramChannels.userId, req.userId)
+          )
         )
-      )
-      .returning({ id: telegramChannels.id });
+        .returning({ id: telegramChannels.id });
+    });
 
-    if (result.length === 0) {
-      return res.status(404).json({ error: "Channel not found" });
-    }
+    if (result.length === 0) return res.status(404).json({ error: "Channel not found" });
 
     return res.status(204).send();
   } catch (err) {

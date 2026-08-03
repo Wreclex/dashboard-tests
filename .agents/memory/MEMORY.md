@@ -1,1 +1,2 @@
 - [Google Sheets integration](google-sheets-integration.md) — column mapping for ПЗМ/ПСМ/ПСТЛ/ВСТЛ/ДОЖ counters; sheet "ВОРОНКА", date format DD.MM.YYYY, 5 date cols AC–AG
+- [Scheduled report delivery](scheduled-report-delivery.md) — use persisted due times and token-fenced DB leases for reliable multi-instance Telegram schedules.

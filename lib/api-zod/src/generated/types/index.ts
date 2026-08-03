@@ -6,11 +6,17 @@
  * OpenAPI spec version: 0.1.0
  */
 
+export * from './autoReportSchedule';
+export * from './autoReportScheduleInput';
+export * from './autoReportScheduleUpdate';
 export * from './getSheetCountsParams';
 export * from './healthStatus';
+export * from './reportSignature';
+export * from './reportStateData';
 export * from './sheetCounts';
 export * from './telegramChannel';
 export * from './telegramChannelInput';
 export * from './telegramChannelUpdate';
 export * from './telegramSendInput';
 export * from './telegramSendResult';
+export * from './userReportStateInput';

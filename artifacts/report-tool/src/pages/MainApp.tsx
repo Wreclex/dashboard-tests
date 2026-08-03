@@ -6,9 +6,10 @@ import TimeInput from '@/components/TimeInput';
 import SignatureModal from '@/components/SignatureModal';
 import TelegramModal from '@/components/TelegramModal';
 import DefaultsModal from '@/components/DefaultsModal';
+import AutoReportModal from '@/components/AutoReportModal';
 import { useReportState, buildPreviewText, formatDate } from '@/hooks/useReportState';
 import { useGetSheetCounts, getGetSheetCountsQueryKey } from '@workspace/api-client-react';
-import { Settings, Send, RotateCcw, Copy, Check, LogIn, LogOut, SlidersHorizontal, RefreshCw } from 'lucide-react';
+import { Settings, Send, RotateCcw, Copy, Check, LogIn, LogOut, SlidersHorizontal, RefreshCw, Clock3 } from 'lucide-react';
 
 const basePath = import.meta.env.BASE_URL.replace(/\/$/, '');
 
@@ -28,6 +29,7 @@ export default function MainApp() {
   const [sigOpen, setSigOpen] = useState(false);
   const [tgOpen, setTgOpen] = useState(false);
   const [defaultsOpen, setDefaultsOpen] = useState(false);
+  const [autoOpen, setAutoOpen] = useState(false);
   const [copied, setCopied] = useState(false);
   const [syncStatus, setSyncStatus] = useState<'idle' | 'loading' | 'ok' | 'err'>('idle');
 
@@ -335,6 +337,15 @@ export default function MainApp() {
                   <Send size={11} />
                   TG
                 </button>
+                <Show when="signed-in">
+                  <button
+                    onClick={() => setAutoOpen(true)}
+                    className="press-sm flex items-center gap-1.5 h-8 px-3 rounded-full text-[10px] font-bold uppercase tracking-[0.14em] bg-white/[0.05] text-muted-foreground hover:text-primary hover:bg-primary/10 transition-colors"
+                  >
+                    <Clock3 size={11} />
+                    Авто
+                  </button>
+                </Show>
                 <button
                   onClick={() => setSigOpen(true)}
                   className="press-sm flex items-center gap-1.5 h-8 px-3 rounded-full text-[10px] font-bold uppercase tracking-[0.14em] bg-white/[0.05] text-muted-foreground hover:text-primary hover:bg-primary/10 transition-colors"
@@ -416,6 +427,13 @@ export default function MainApp() {
         onClose={() => setDefaultsOpen(false)}
         defaults={userDefaults}
         onSave={saveUserDefaults}
+      />
+      <AutoReportModal
+        open={autoOpen}
+        onClose={() => setAutoOpen(false)}
+        state={state}
+        signature={signature}
+        selectedReportType={tab}
       />
     </div>
   );

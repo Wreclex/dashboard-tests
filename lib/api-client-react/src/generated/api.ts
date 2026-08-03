@@ -20,6 +20,9 @@ import type {
 } from '@tanstack/react-query';
 
 import type {
+  AutoReportSchedule,
+  AutoReportScheduleInput,
+  AutoReportScheduleUpdate,
   GetSheetCountsParams,
   HealthStatus,
   SheetCounts,
@@ -27,7 +30,8 @@ import type {
   TelegramChannelInput,
   TelegramChannelUpdate,
   TelegramSendInput,
-  TelegramSendResult
+  TelegramSendResult,
+  UserReportStateInput
 } from './api.schemas';
 
 import { customFetch } from '../custom-fetch';
@@ -579,5 +583,366 @@ export const useSendTelegramMessage = <TError = ErrorType<void>,
         TContext
       > => {
       return useMutation(getSendTelegramMessageMutationOptions(options));
+    }
+
+export const getSaveUserReportStateUrl = () => {
+
+
+
+
+  return `/api/state`
+}
+
+/**
+ * @summary Save the authenticated user's current report state for scheduled delivery
+ */
+export const saveUserReportState = async (userReportStateInput: UserReportStateInput, options?: Parameters<typeof customFetch>[1]): Promise<void> => {
+
+  return customFetch<void>(getSaveUserReportStateUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(userReportStateInput)
+  }
+);}
+
+
+
+
+
+export const getSaveUserReportStateMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof saveUserReportState>>, TError,{data: BodyType<UserReportStateInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof saveUserReportState>>, TError,{data: BodyType<UserReportStateInput>}, TContext> => {
+
+const mutationKey = ['saveUserReportState'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof saveUserReportState>>, {data: BodyType<UserReportStateInput>}> = (props) => {
+          const {data} = props ?? {};
+
+          return  saveUserReportState(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type SaveUserReportStateMutationResult = NonNullable<Awaited<ReturnType<typeof saveUserReportState>>>
+    export type SaveUserReportStateMutationBody = BodyType<UserReportStateInput>
+    export type SaveUserReportStateMutationError = ErrorType<void>
+
+    /**
+ * @summary Save the authenticated user's current report state for scheduled delivery
+ */
+export const useSaveUserReportState = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof saveUserReportState>>, TError,{data: BodyType<UserReportStateInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof saveUserReportState>>,
+        TError,
+        {data: BodyType<UserReportStateInput>},
+        TContext
+      > => {
+      return useMutation(getSaveUserReportStateMutationOptions(options));
+    }
+
+export const getGetAutoReportScheduleUrl = () => {
+
+
+
+
+  return `/api/auto-reports`
+}
+
+/**
+ * @summary Get the authenticated user's scheduled report configuration
+ */
+export const getAutoReportSchedule = async ( options?: Parameters<typeof customFetch>[1]): Promise<AutoReportSchedule | null> => {
+
+  return customFetch<AutoReportSchedule | null>(getGetAutoReportScheduleUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetAutoReportScheduleQueryKey = () => {
+    return [
+    `/api/auto-reports`
+    ] as const;
+    }
+
+
+export const getGetAutoReportScheduleQueryOptions = <TData = Awaited<ReturnType<typeof getAutoReportSchedule>>, TError = ErrorType<void>>( options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getAutoReportSchedule>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetAutoReportScheduleQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getAutoReportSchedule>>> = ({ signal }) => getAutoReportSchedule({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getAutoReportSchedule>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetAutoReportScheduleQueryResult = NonNullable<Awaited<ReturnType<typeof getAutoReportSchedule>>>
+export type GetAutoReportScheduleQueryError = ErrorType<void>
+
+
+/**
+ * @summary Get the authenticated user's scheduled report configuration
+ */
+
+export function useGetAutoReportSchedule<TData = Awaited<ReturnType<typeof getAutoReportSchedule>>, TError = ErrorType<void>>(
+  options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getAutoReportSchedule>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetAutoReportScheduleQueryOptions(options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getCreateAutoReportScheduleUrl = () => {
+
+
+
+
+  return `/api/auto-reports`
+}
+
+/**
+ * @summary Create or activate the authenticated user's scheduled report
+ */
+export const createAutoReportSchedule = async (autoReportScheduleInput: AutoReportScheduleInput, options?: Parameters<typeof customFetch>[1]): Promise<AutoReportSchedule> => {
+
+  return customFetch<AutoReportSchedule>(getCreateAutoReportScheduleUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(autoReportScheduleInput)
+  }
+);}
+
+
+
+
+
+export const getCreateAutoReportScheduleMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createAutoReportSchedule>>, TError,{data: BodyType<AutoReportScheduleInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof createAutoReportSchedule>>, TError,{data: BodyType<AutoReportScheduleInput>}, TContext> => {
+
+const mutationKey = ['createAutoReportSchedule'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof createAutoReportSchedule>>, {data: BodyType<AutoReportScheduleInput>}> = (props) => {
+          const {data} = props ?? {};
+
+          return  createAutoReportSchedule(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type CreateAutoReportScheduleMutationResult = NonNullable<Awaited<ReturnType<typeof createAutoReportSchedule>>>
+    export type CreateAutoReportScheduleMutationBody = BodyType<AutoReportScheduleInput>
+    export type CreateAutoReportScheduleMutationError = ErrorType<void>
+
+    /**
+ * @summary Create or activate the authenticated user's scheduled report
+ */
+export const useCreateAutoReportSchedule = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createAutoReportSchedule>>, TError,{data: BodyType<AutoReportScheduleInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof createAutoReportSchedule>>,
+        TError,
+        {data: BodyType<AutoReportScheduleInput>},
+        TContext
+      > => {
+      return useMutation(getCreateAutoReportScheduleMutationOptions(options));
+    }
+
+export const getUpdateAutoReportScheduleUrl = () => {
+
+
+
+
+  return `/api/auto-reports`
+}
+
+/**
+ * @summary Update the authenticated user's scheduled report
+ */
+export const updateAutoReportSchedule = async (autoReportScheduleUpdate: AutoReportScheduleUpdate, options?: Parameters<typeof customFetch>[1]): Promise<AutoReportSchedule> => {
+
+  return customFetch<AutoReportSchedule>(getUpdateAutoReportScheduleUrl(),
+  {
+    ...options,
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(autoReportScheduleUpdate)
+  }
+);}
+
+
+
+
+
+export const getUpdateAutoReportScheduleMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateAutoReportSchedule>>, TError,{data: BodyType<AutoReportScheduleUpdate>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof updateAutoReportSchedule>>, TError,{data: BodyType<AutoReportScheduleUpdate>}, TContext> => {
+
+const mutationKey = ['updateAutoReportSchedule'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof updateAutoReportSchedule>>, {data: BodyType<AutoReportScheduleUpdate>}> = (props) => {
+          const {data} = props ?? {};
+
+          return  updateAutoReportSchedule(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type UpdateAutoReportScheduleMutationResult = NonNullable<Awaited<ReturnType<typeof updateAutoReportSchedule>>>
+    export type UpdateAutoReportScheduleMutationBody = BodyType<AutoReportScheduleUpdate>
+    export type UpdateAutoReportScheduleMutationError = ErrorType<void>
+
+    /**
+ * @summary Update the authenticated user's scheduled report
+ */
+export const useUpdateAutoReportSchedule = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateAutoReportSchedule>>, TError,{data: BodyType<AutoReportScheduleUpdate>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof updateAutoReportSchedule>>,
+        TError,
+        {data: BodyType<AutoReportScheduleUpdate>},
+        TContext
+      > => {
+      return useMutation(getUpdateAutoReportScheduleMutationOptions(options));
+    }
+
+export const getDeleteAutoReportScheduleUrl = () => {
+
+
+
+
+  return `/api/auto-reports`
+}
+
+/**
+ * @summary Deactivate the authenticated user's scheduled report
+ */
+export const deleteAutoReportSchedule = async ( options?: Parameters<typeof customFetch>[1]): Promise<void> => {
+
+  return customFetch<void>(getDeleteAutoReportScheduleUrl(),
+  {
+    ...options,
+    method: 'DELETE'
+
+
+  }
+);}
+
+
+
+
+
+export const getDeleteAutoReportScheduleMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof deleteAutoReportSchedule>>, TError,void, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof deleteAutoReportSchedule>>, TError,void, TContext> => {
+
+const mutationKey = ['deleteAutoReportSchedule'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof deleteAutoReportSchedule>>, void> = () => {
+
+
+          return  deleteAutoReportSchedule(requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type DeleteAutoReportScheduleMutationResult = NonNullable<Awaited<ReturnType<typeof deleteAutoReportSchedule>>>
+
+    export type DeleteAutoReportScheduleMutationError = ErrorType<void>
+
+    /**
+ * @summary Deactivate the authenticated user's scheduled report
+ */
+export const useDeleteAutoReportSchedule = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof deleteAutoReportSchedule>>, TError,void, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof deleteAutoReportSchedule>>,
+        TError,
+        void,
+        TContext
+      > => {
+      return useMutation(getDeleteAutoReportScheduleMutationOptions(options));
     }
 

@@ -120,3 +120,140 @@ export const SendTelegramMessageResponse = zod.object({
 })
 
 
+/**
+ * @summary Save the authenticated user's current report state for scheduled delivery
+ */
+export const saveUserReportStateBodyStatePzmMin = 0;
+
+export const saveUserReportStateBodyStatePsmMin = 0;
+
+export const saveUserReportStateBodyStatePstlMin = 0;
+
+export const saveUserReportStateBodyStateVstlMin = 0;
+
+export const saveUserReportStateBodyStateDozhMin = 0;
+
+export const saveUserReportStateBodyStateKzMin = 0;
+
+export const saveUserReportStateBodyStatePostupleniyaMin = 0;
+
+export const saveUserReportStateBodyStateItogoFactMin = 0;
+
+export const saveUserReportStateBodyStateItogoPlanMin = 0;
+
+export const saveUserReportStateBodyStateVypolnenieMin = 0;
+
+
+
+
+
+
+export const SaveUserReportStateBody = zod.object({
+  "state": zod.object({
+  "pzm": zod.number().min(saveUserReportStateBodyStatePzmMin),
+  "psm": zod.number().min(saveUserReportStateBodyStatePsmMin),
+  "pstl": zod.number().min(saveUserReportStateBodyStatePstlMin),
+  "vstl": zod.number().min(saveUserReportStateBodyStateVstlMin),
+  "dozh": zod.number().min(saveUserReportStateBodyStateDozhMin),
+  "trafikPlan": zod.string(),
+  "trafikCurrent": zod.string(),
+  "kz": zod.number().min(saveUserReportStateBodyStateKzMin),
+  "prihod": zod.string(),
+  "uhod": zod.string(),
+  "postupleniya": zod.number().min(saveUserReportStateBodyStatePostupleniyaMin),
+  "itogoFact": zod.number().min(saveUserReportStateBodyStateItogoFactMin),
+  "itogoPlan": zod.number().min(saveUserReportStateBodyStateItogoPlanMin),
+  "vypolnenie": zod.number().min(saveUserReportStateBodyStateVypolnenieMin),
+  "financesEnabled": zod.boolean()
+}),
+  "signature": zod.object({
+  "tag1": zod.string().min(1),
+  "tag2": zod.string().min(1),
+  "mention": zod.string().min(1)
+})
+})
+
+export const SaveUserReportStateResponse = zod.void()
+
+
+/**
+ * @summary Get the authenticated user's scheduled report configuration
+ */
+export const GetAutoReportScheduleResponse = zod.union([zod.object({
+  "id": zod.number(),
+  "channelId": zod.number(),
+  "intervalMinutes": zod.number(),
+  "reportType": zod.number(),
+  "isActive": zod.boolean(),
+  "lastSentAt": zod.coerce.date().nullable(),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date()
+}),zod.null()])
+
+
+/**
+ * @summary Create or activate the authenticated user's scheduled report
+ */
+
+export const createAutoReportScheduleBodyIntervalMinutesMax = 10;
+
+export const createAutoReportScheduleBodyReportTypeMin = 0;
+export const createAutoReportScheduleBodyReportTypeMax = 2;
+
+
+
+export const CreateAutoReportScheduleBody = zod.object({
+  "channelId": zod.number().min(1),
+  "intervalMinutes": zod.number().min(1).max(createAutoReportScheduleBodyIntervalMinutesMax),
+  "reportType": zod.number().min(createAutoReportScheduleBodyReportTypeMin).max(createAutoReportScheduleBodyReportTypeMax),
+  "isActive": zod.boolean()
+})
+
+export const CreateAutoReportScheduleResponse = zod.object({
+  "id": zod.number(),
+  "channelId": zod.number(),
+  "intervalMinutes": zod.number(),
+  "reportType": zod.number(),
+  "isActive": zod.boolean(),
+  "lastSentAt": zod.coerce.date().nullable(),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date()
+})
+
+
+/**
+ * @summary Update the authenticated user's scheduled report
+ */
+
+export const updateAutoReportScheduleBodyIntervalMinutesMax = 10;
+
+export const updateAutoReportScheduleBodyReportTypeMin = 0;
+export const updateAutoReportScheduleBodyReportTypeMax = 2;
+
+
+
+export const UpdateAutoReportScheduleBody = zod.object({
+  "channelId": zod.number().min(1).optional(),
+  "intervalMinutes": zod.number().min(1).max(updateAutoReportScheduleBodyIntervalMinutesMax).optional(),
+  "reportType": zod.number().min(updateAutoReportScheduleBodyReportTypeMin).max(updateAutoReportScheduleBodyReportTypeMax).optional(),
+  "isActive": zod.boolean().optional()
+})
+
+export const UpdateAutoReportScheduleResponse = zod.object({
+  "id": zod.number(),
+  "channelId": zod.number(),
+  "intervalMinutes": zod.number(),
+  "reportType": zod.number(),
+  "isActive": zod.boolean(),
+  "lastSentAt": zod.coerce.date().nullable(),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date()
+})
+
+
+/**
+ * @summary Deactivate the authenticated user's scheduled report
+ */
+export const DeleteAutoReportScheduleResponse = zod.void()
+
+
