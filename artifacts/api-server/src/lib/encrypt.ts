@@ -47,7 +47,8 @@ export function encryptToken(plaintext: string): string {
 export function decryptToken(stored: string): string {
   const key = getKey();
   const buf = Buffer.from(stored, "base64");
-  if (buf.length < IV_BYTES + TAG_BYTES + 1) {
+  // Empty plaintext is valid: IV + tag + zero ciphertext bytes.
+  if (buf.length < IV_BYTES + TAG_BYTES) {
     throw new Error("Invalid encrypted token format");
   }
   const iv = buf.subarray(0, IV_BYTES);
