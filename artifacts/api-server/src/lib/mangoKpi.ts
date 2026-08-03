@@ -46,7 +46,12 @@ export async function getMangoKpi(
   opts?: { totalTimeoutMs?: number; userId?: string },
 ): Promise<MangoKpi> {
   const authToken = decryptToken(encryptedAuthToken).trim();
-  if (!authToken) throw new MangoKpiUnavailableError("Stored Mango auth token is empty");
+  if (!authToken) throw new MangoAuthError("Токен Mango не задан — обновите через закладку");
+  // Guard: Bearer header values must be ASCII (≤ 0xFF). Non-ASCII means the DB
+  // still holds email/password data from a previous setup attempt.
+  if ([...authToken].some(c => c.charCodeAt(0) > 127)) {
+    throw new MangoAuthError("Токен Mango устарел — обновите через закладку");
+  }
 
   try {
     return await fetchMangoKpi(authToken, fetch, MANGO_RESULT_POLL_DELAY_MS, opts?.totalTimeoutMs);
