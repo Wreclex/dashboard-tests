@@ -28,7 +28,13 @@ export function TeamView({ shiftHours }: { shiftHours: number }) {
   const [selected, setSelected] = useState<Set<number> | null>(null); // null = all
 
   const { data, isLoading, error, isFetching, refetch } = useGetMoizvonkiTeamKpi({
-    query: { queryKey: getGetMoizvonkiTeamKpiQueryKey(), retry: false, staleTime: 5 * 60 * 1000 },
+    query: {
+      queryKey: getGetMoizvonkiTeamKpiQueryKey(),
+      retry: false,
+      staleTime: 5 * 60 * 1000,
+      refetchOnWindowFocus: false,
+      refetchOnReconnect: false,
+    },
   });
 
   const members: MangoOperator[] = useMemo(() => data?.members ?? [], [data]);

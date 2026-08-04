@@ -233,18 +233,18 @@ export function buildPreviewText(
           prihod, uhod, postupleniya, itogoFact, itogoPlan, vypolnenie, financesEnabled } = state;
   const { tag1, tag2, mention } = signature;
 
-  const tags = `#${tag1} #${tag2}\n@${mention}`;
+  const tags = `#${tag1}\n#${tag2}\n@${mention}`;
   const counters = `1 ПЗМ ${pzm}\n2 ПСМ ${psm}\n3 ПСТЛ ${pstl}\n4 ВСТЛ ${vstl}`;
 
   if (tab === 0) {
     return `ПЛАН ${date}\n\n${counters}\n5 ДОЖ ${dozh}\n\nТРАФИК: ${trafikPlan}\n\n${tags}`;
   }
   if (tab === 1) {
-    return `ПРЕДВАРИТЕЛЬНЫЙ ОТЧЁТ ${date}\n\n${counters}\n5 ДОЖАТИЕ ${dozh}\n\nТРАФИК: ${trafikCurrent}/${trafikPlan}\nКЗ:  ${kz}\n\n${tags}`;
+    return `ПРЕДВАРИТЕЛЬНЫЙ ОТЧЁТ ${date}\n\n${counters}\n5 ДОЖАТИЕ ${dozh}\n\nТРАФИК: ${trafikCurrent}/${trafikPlan}\nКЗ: ${kz}\n\n${tags}`;
   }
   // tab === 2: ОТЧЁТ
   const finStr = financesEnabled
     ? `\nПОСТУПЛЕНИЯ: ${formatMoney(postupleniya)}\nИТОГО: ${formatMoney(itogoFact)} / ${formatMoney(itogoPlan)}\n% выполнения плана: ${vypolnenie}%`
     : '';
-  return `Отчёт ${date}\n\n${counters}\n5 ДОЖАТИЕ ${dozh}\n\nПриход: ${prihod}\nУход: ${uhod}\n\nТРАФИК:   ${trafikCurrent}/ ${trafikPlan} \nКЗ: ${kz}${finStr}\n\n${tags}`;
+  return `Отчёт ${date}\n\n${counters}\n5 ДОЖАТИЕ ${dozh}\n\nПриход: ${prihod}\nУход: ${uhod}\n\nТРАФИК: ${trafikCurrent}/${trafikPlan}\nКЗ: ${kz}${finStr}\n\n${tags}`;
 }

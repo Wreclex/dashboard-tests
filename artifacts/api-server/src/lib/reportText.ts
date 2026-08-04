@@ -41,18 +41,18 @@ export function buildReportText(
   signature: StoredSignature,
   date: string,
 ): string {
-  const tags = `#${signature.tag1} #${signature.tag2}\n@${signature.mention}`;
+  const tags = `#${signature.tag1}\n#${signature.tag2}\n@${signature.mention}`;
   const counters = `1 ПЗМ ${state.pzm}\n2 ПСМ ${state.psm}\n3 ПСТЛ ${state.pstl}\n4 ВСТЛ ${state.vstl}`;
 
   if (reportType === 0) {
     return `ПЛАН ${date}\n\n${counters}\n5 ДОЖ ${state.dozh}\n\nТРАФИК: ${state.trafikPlan}\n\n${tags}`;
   }
   if (reportType === 1) {
-    return `ПРЕДВАРИТЕЛЬНЫЙ ОТЧЁТ ${date}\n\n${counters}\n5 ДОЖАТИЕ ${state.dozh}\n\nТРАФИК: ${state.trafikCurrent}/${state.trafikPlan}\nКЗ:  ${state.kz}\n\n${tags}`;
+    return `ПРЕДВАРИТЕЛЬНЫЙ ОТЧЁТ ${date}\n\n${counters}\n5 ДОЖАТИЕ ${state.dozh}\n\nТРАФИК: ${state.trafikCurrent}/${state.trafikPlan}\nКЗ: ${state.kz}\n\n${tags}`;
   }
 
   const financeText = state.financesEnabled
     ? `\nПОСТУПЛЕНИЯ: ${formatMoney(state.postupleniya)}\nИТОГО: ${formatMoney(state.itogoFact)} / ${formatMoney(state.itogoPlan)}\n% выполнения плана: ${state.vypolnenie}%`
     : "";
-  return `Отчёт ${date}\n\n${counters}\n5 ДОЖАТИЕ ${state.dozh}\n\nПриход: ${state.prihod}\nУход: ${state.uhod}\n\nТРАФИК:   ${state.trafikCurrent}/ ${state.trafikPlan} \nКЗ: ${state.kz}${financeText}\n\n${tags}`;
+  return `Отчёт ${date}\n\n${counters}\n5 ДОЖАТИЕ ${state.dozh}\n\nПриход: ${state.prihod}\nУход: ${state.uhod}\n\nТРАФИК: ${state.trafikCurrent}/${state.trafikPlan}\nКЗ: ${state.kz}${financeText}\n\n${tags}`;
 }

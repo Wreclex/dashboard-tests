@@ -88,13 +88,21 @@ export default function DashboardPage({ me }: { me: TeamMember }) {
   });
 
   const { data: statusMango, isLoading: isStatusMangoLoading } = useGetMoizvonkiMangoStatus({
-    query: { queryKey: getGetMoizvonkiMangoStatusQueryKey() }
+    query: {
+      queryKey: getGetMoizvonkiMangoStatusQueryKey(),
+      staleTime: 60 * 1000,
+      refetchOnWindowFocus: false,
+      refetchOnReconnect: false,
+    }
   });
 
   const { data: metricsMz, isLoading: isMetricsMzLoading, error: metricsMzError, isFetching: isMzFetching } = useGetMoizvonkiMetrics({
     query: { 
       queryKey: getGetMoizvonkiMetricsQueryKey(),
-      retry: false
+      retry: false,
+      enabled: Boolean(statusMz?.isConfigured),
+      refetchOnWindowFocus: false,
+      refetchOnReconnect: false,
     }
   });
 
@@ -102,7 +110,12 @@ export default function DashboardPage({ me }: { me: TeamMember }) {
     query: {
       queryKey: getGetMoizvonkiMangoKpiQueryKey(),
       retry: false,
-      staleTime: 5 * 60 * 1000 // 5 minutes
+      // TeamView owns the team request. Do not fetch the personal KPI in
+      // parallel while a manager is looking at the team tab.
+      enabled: view === 'mine' && Boolean(statusMango?.isConnected && me.mangoMemberId),
+      staleTime: 5 * 60 * 1000,
+      refetchOnWindowFocus: false,
+      refetchOnReconnect: false,
     }
   });
 

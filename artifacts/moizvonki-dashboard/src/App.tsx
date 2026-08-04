@@ -16,7 +16,17 @@ import { Onboarding } from './components/onboarding';
 import { useGetMe, getGetMeQueryKey } from '@workspace/api-client-react';
 import type { TeamMember } from '@workspace/api-client-react';
 
-const queryClient = new QueryClient();
+const queryClient = new QueryClient({
+  defaultOptions: {
+    queries: {
+      // Dashboard data is refreshed explicitly by the user. Avoid a request
+      // storm when Clerk refreshes a session or the preview regains focus.
+      refetchOnWindowFocus: false,
+      refetchOnReconnect: false,
+      retry: false,
+    },
+  },
+});
 
 // REQUIRED — resolves key from window.location.hostname; do not inline env var
 const clerkPubKey = publishableKeyFromHost(
