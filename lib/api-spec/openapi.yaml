@@ -250,6 +250,67 @@ paths:
         "502":
           description: Mango Office could not provide KPI data
 
+  /moizvonki/mango/status:
+    get:
+      operationId: getMoizvonkiMangoStatus
+      tags: [moizvonki]
+      summary: Get Mango Office connection status for the combined dashboard (no auth — uses the stored Mango credentials)
+      responses:
+        "200":
+          description: Connection status
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MangoStatus"
+
+  /moizvonki/mango/kpi:
+    get:
+      operationId: getMoizvonkiMangoKpi
+      tags: [moizvonki]
+      summary: Fetch today's Mango Office calls and traffic for the combined dashboard (no auth)
+      responses:
+        "200":
+          description: Today's Mango KPI values
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MangoKpi"
+        "401":
+          description: Mango session expired — re-enter Mango credentials
+        "404":
+          description: Mango credentials are not configured
+        "502":
+          description: Mango Office could not provide KPI data
+
+  /moizvonki/mango/credentials:
+    put:
+      operationId: putMoizvonkiMangoCredentials
+      tags: [moizvonki]
+      summary: Store Mango Office login (email + password) for the combined dashboard
+      description: Verifies credentials via headless-browser login before saving. May take up to ~60s.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/MangoCredentialsInput"
+      responses:
+        "204":
+          description: Credentials verified and stored
+        "400":
+          description: Missing email or password
+        "401":
+          description: Mango rejected the credentials
+        "502":
+          description: Headless login failed (captcha/2FA/network)
+    delete:
+      operationId: deleteMoizvonkiMangoCredentials
+      tags: [moizvonki]
+      summary: Remove the stored Mango Office credentials
+      responses:
+        "204":
+          description: Credentials removed
+
   /moizvonki/status:
     get:
       operationId: getMoizvonkiStatus

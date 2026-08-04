@@ -1,7 +1,13 @@
 import { Router } from "express";
-import { db, moizvonkiConnections, moizvonkiMetrics, moizvonkiSettings } from "@workspace/db";
+import { db, mangoCredentials, moizvonkiConnections, moizvonkiMetrics, moizvonkiSettings } from "@workspace/db";
 import { desc, eq } from "drizzle-orm";
 import { encryptToken } from "../lib/encrypt";
+import {
+  getMangoKpi,
+  mangoBrowserLogin,
+  MangoAuthError,
+  MangoKpiUnavailableError,
+} from "../lib/mangoKpi";
 import {
   CONNECTION_ID,
   SETTINGS_ID,
@@ -44,6 +50,113 @@ function toMetricsPayload(
     updatedAt: row.updatedAt.toISOString(),
   };
 }
+
+// ── Mango (combined dashboard) ───────────────────────────────────────────────
+// The combined dashboard has no Clerk auth, so it reuses whatever Mango
+// credential row exists (shared with the Report Tool) instead of a per-user one.
+
+async function getStoredMangoCredential() {
+  const [row] = await db
+    .select()
+    .from(mangoCredentials)
+    .orderBy(desc(mangoCredentials.updatedAt))
+    .limit(1);
+  return row ?? null;
+}
+
+router.get("/mango/status", async (req, res): Promise<void> => {
+  try {
+    const credential = await getStoredMangoCredential();
+    res.json({ isConnected: Boolean(credential) });
+  } catch (err) {
+    req.log.error({ err }, "Failed to get Mango status for combined dashboard");
+    res.status(500).json({ error: "Internal server error" });
+  }
+});
+
+router.get("/mango/kpi", async (req, res): Promise<void> => {
+  try {
+    const credential = await getStoredMangoCredential();
+    if (!credential) {
+      res.status(404).json({ error: "credentials_not_configured" });
+      return;
+    }
+    const kpi = await getMangoKpi(credential, { userId: credential.userId });
+    res.json(kpi);
+  } catch (err) {
+    if (err instanceof MangoAuthError) {
+      res.status(401).json({ error: "auth_failed", message: err.message });
+      return;
+    }
+    if (err instanceof MangoKpiUnavailableError) {
+      req.log.warn({ err }, "Mango KPI unavailable for combined dashboard");
+      res.status(502).json({ error: "mango_kpi_unavailable", message: err.message });
+      return;
+    }
+    req.log.error({ err }, "Failed to fetch Mango KPI for combined dashboard");
+    res.status(500).json({ error: "Internal server error" });
+  }
+});
+
+router.put("/mango/credentials", async (req, res): Promise<void> => {
+  const { email, password } = req.body ?? {};
+  if (typeof email !== "string" || !email.trim() || typeof password !== "string" || !password) {
+    res.status(400).json({ error: "email and password are required" });
+    return;
+  }
+
+  try {
+    const existing = await getStoredMangoCredential();
+    const userId = existing?.userId ?? "default";
+    const persist = async (session?: Awaited<ReturnType<typeof mangoBrowserLogin>>) => {
+      const base = {
+        email: encryptToken(email.trim()),
+        password: encryptToken(password),
+        updatedAt: new Date(),
+      };
+      const withTokens = session
+        ? { ...base, authToken: encryptToken(session.jwtToken), operatorGroups: JSON.stringify(session.operatorGroups) }
+        : base;
+      await db
+        .insert(mangoCredentials)
+        .values({ userId, ...withTokens })
+        .onConflictDoUpdate({ target: mangoCredentials.userId, set: withTokens });
+    };
+
+    try {
+      const session = await mangoBrowserLogin(email.trim(), password);
+      await persist(session);
+      res.status(204).send();
+    } catch (err) {
+      await persist().catch((e) => req.log.error({ err: e }, "Failed to persist Mango credentials"));
+      if (err instanceof MangoAuthError) {
+        res.status(401).json({ error: "auth_failed", message: err.message });
+        return;
+      }
+      if (err instanceof MangoKpiUnavailableError) {
+        res.status(502).json({ error: "mango_login_unavailable", message: err.message });
+        return;
+      }
+      throw err;
+    }
+  } catch (err) {
+    req.log.error({ err }, "Failed to store Mango credentials for combined dashboard");
+    res.status(500).json({ error: "Internal server error" });
+  }
+});
+
+router.delete("/mango/credentials", async (req, res): Promise<void> => {
+  try {
+    const existing = await getStoredMangoCredential();
+    if (existing) {
+      await db.delete(mangoCredentials).where(eq(mangoCredentials.userId, existing.userId));
+    }
+    res.status(204).send();
+  } catch (err) {
+    req.log.error({ err }, "Failed to delete Mango credentials for combined dashboard");
+    res.status(500).json({ error: "Internal server error" });
+  }
+});
 
 router.get("/status", async (req, res): Promise<void> => {
   try {

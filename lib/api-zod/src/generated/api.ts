@@ -180,6 +180,51 @@ export const GetMangoKpiResponse = zod.object({
 
 
 /**
+ * @summary Get Mango Office connection status for the combined dashboard (no auth — uses the stored Mango credentials)
+ */
+export const GetMoizvonkiMangoStatusResponse = zod.object({
+  "isConnected": zod.boolean()
+})
+
+
+/**
+ * @summary Fetch today's Mango Office calls and traffic for the combined dashboard (no auth)
+ */
+export const getMoizvonkiMangoKpiResponseCallsMin = 0;
+
+export const getMoizvonkiMangoKpiResponseTrafficSecondsMin = 0;
+
+
+
+export const GetMoizvonkiMangoKpiResponse = zod.object({
+  "calls": zod.number().min(getMoizvonkiMangoKpiResponseCallsMin),
+  "trafficSeconds": zod.number().min(getMoizvonkiMangoKpiResponseTrafficSecondsMin)
+})
+
+
+/**
+ * Verifies credentials via headless-browser login before saving. May take up to ~60s.
+ * @summary Store Mango Office login (email + password) for the combined dashboard
+ */
+
+
+
+
+export const PutMoizvonkiMangoCredentialsBody = zod.object({
+  "email": zod.string().min(1),
+  "password": zod.string().min(1)
+})
+
+export const PutMoizvonkiMangoCredentialsResponse = zod.void()
+
+
+/**
+ * @summary Remove the stored Mango Office credentials
+ */
+export const DeleteMoizvonkiMangoCredentialsResponse = zod.void()
+
+
+/**
  * @summary Get Мои Звонки connection status and last collection result
  */
 export const GetMoizvonkiStatusResponse = zod.object({

@@ -11,9 +11,13 @@ import {
   RefreshCw, 
   AlertCircle, 
   CheckCircle2, 
-  Settings2,
   CalendarDays,
-  ArrowRight
+  ArrowRight,
+  Phone,
+  Radio,
+  PlugZap,
+  ServerCrash,
+  Settings2
 } from 'lucide-react';
 import { format } from 'date-fns';
 import { ru } from 'date-fns/locale';
@@ -25,11 +29,15 @@ import { MetricsChart } from '../components/metrics-chart';
 import {
   useGetMoizvonkiStatus,
   useGetMoizvonkiMetrics,
-  useGetMoizvonkiSettings,
   useRefreshMoizvonkiMetrics,
+  useGetMoizvonkiMangoStatus,
+  useGetMoizvonkiMangoKpi,
+  useGetMoizvonkiSettings,
   getGetMoizvonkiStatusQueryKey,
   getGetMoizvonkiMetricsQueryKey,
   getGetMoizvonkiHistoryQueryKey,
+  getGetMoizvonkiMangoStatusQueryKey,
+  getGetMoizvonkiMangoKpiQueryKey,
   getGetMoizvonkiSettingsQueryKey
 } from '@workspace/api-client-react';
 
@@ -61,133 +69,174 @@ function SourceBadge({ source }: { source: string }) {
 export default function DashboardPage() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
-  const [isSettingsOpen, setIsSettingsOpen] = useState(false);
+  const [settingsOpen, setSettingsOpen] = useState(false);
+  const [settingsTab, setSettingsTab] = useState('mz');
 
-  const { data: status, isLoading: isStatusLoading } = useGetMoizvonkiStatus({ 
+  const { data: settings } = useGetMoizvonkiSettings({ query: { queryKey: getGetMoizvonkiSettingsQueryKey() } });
+
+  const { data: statusMz, isLoading: isStatusMzLoading } = useGetMoizvonkiStatus({ 
     query: { queryKey: getGetMoizvonkiStatusQueryKey() } 
   });
 
-  const { data: settings } = useGetMoizvonkiSettings({
-    query: { queryKey: getGetMoizvonkiSettingsQueryKey() }
+  const { data: statusMango, isLoading: isStatusMangoLoading } = useGetMoizvonkiMangoStatus({
+    query: { queryKey: getGetMoizvonkiMangoStatusQueryKey() }
   });
 
-  // Автообновление по интервалу из настроек (по умолчанию 15 минут).
-  const refetchIntervalMs = (settings?.refreshIntervalMinutes ?? 15) * 60_000;
-
-  const { data: metrics, isLoading: isMetricsLoading, error: metricsError } = useGetMoizvonkiMetrics({
-    query: {
+  const { data: metricsMz, isLoading: isMetricsMzLoading, error: metricsMzError, isFetching: isMzFetching } = useGetMoizvonkiMetrics({
+    query: { 
       queryKey: getGetMoizvonkiMetricsQueryKey(),
-      retry: false,
-      refetchInterval: refetchIntervalMs
+      retry: false
     }
   });
 
-  const refreshMetrics = useRefreshMoizvonkiMetrics();
+  const { data: kpiMango, isLoading: isKpiMangoLoading, error: kpiMangoError, isFetching: isMangoFetching } = useGetMoizvonkiMangoKpi({
+    query: {
+      queryKey: getGetMoizvonkiMangoKpiQueryKey(),
+      retry: false,
+      staleTime: 5 * 60 * 1000 // 5 minutes
+    }
+  });
+
+  const refreshMz = useRefreshMoizvonkiMetrics();
 
   const handleRefresh = () => {
-    refreshMetrics.mutate(undefined, {
+    // 1. Invalidate Mango immediately (it's a live query)
+    queryClient.invalidateQueries({ queryKey: getGetMoizvonkiMangoStatusQueryKey() });
+    queryClient.invalidateQueries({ queryKey: getGetMoizvonkiMangoKpiQueryKey() });
+    
+    // 2. Trigger MZ refresh mutation
+    refreshMz.mutate(undefined, {
       onSuccess: () => {
-        toast({ title: 'Обновлено', description: 'Данные успешно синхронизированы.' });
+        toast({ title: 'Обновлено', description: 'Синхронизация завершена.' });
         queryClient.invalidateQueries({ queryKey: getGetMoizvonkiMetricsQueryKey() });
         queryClient.invalidateQueries({ queryKey: getGetMoizvonkiHistoryQueryKey() });
         queryClient.invalidateQueries({ queryKey: getGetMoizvonkiStatusQueryKey() });
       },
       onError: (err: any) => {
         const status = err?.response?.status;
-        let msg = 'Произошла неизвестная ошибка.';
-        if (status === 400) msg = 'Подключение не настроено.';
-        if (status === 401) msg = 'Сессия отклонена. Проверьте настройки авторизации.';
-        if (status === 502) msg = 'Сбой сбора данных со стороны сервера «Мои Звонки».';
-        
+        let msg = 'Произошла неизвестная ошибка при обновлении Мои Звонки.';
+        if (status === 400) msg = 'Подключение Мои Звонки не настроено.';
+        if (status === 401) msg = 'Сессия Мои Звонки отклонена.';
+        if (status === 502) msg = 'Сбой сбора со стороны Мои Звонки.';
         toast({ title: 'Ошибка обновления', description: msg, variant: 'destructive' });
       }
     });
   };
 
-  const isConfigured = status?.isConfigured;
-  const isMetricsEmpty = metricsError && (metricsError as any)?.response?.status === 404;
+  const openSettings = (tab: string) => {
+    setSettingsTab(tab);
+    setSettingsOpen(true);
+  };
+
+  const isConfiguredMz = statusMz?.isConfigured;
+  const isConfiguredMango = statusMango?.isConnected;
+  const isLoadingStatuses = isStatusMzLoading || isStatusMangoLoading;
   
-  if (isStatusLoading) {
+  const isRefreshing = refreshMz.isPending || isMzFetching || isMangoFetching;
+
+  // Computations
+  const mzCalls = metricsMz?.calls ?? 0;
+  const mzTraffic = metricsMz?.trafficSeconds ?? 0;
+  const mangoCalls = kpiMango?.calls ?? 0;
+  const mangoTraffic = kpiMango?.trafficSeconds ?? 0;
+
+  const totalCalls = mzCalls + mangoCalls;
+  const totalTraffic = mzTraffic + mangoTraffic;
+  const shiftHours = settings?.shiftHours ?? 9.5;
+  const density = shiftHours > 0 ? totalCalls / shiftHours : 0;
+
+  if (isLoadingStatuses) {
     return (
       <div className="min-h-screen bg-muted/20 p-6 lg:p-10 flex items-center justify-center">
         <div className="flex flex-col items-center gap-4 text-muted-foreground animate-pulse">
           <RefreshCw className="w-8 h-8 animate-spin" />
-          <p className="text-sm font-medium">Загрузка дашборда...</p>
+          <p className="text-sm font-medium">Сбор данных со всех телефоний...</p>
         </div>
       </div>
     );
   }
 
-  if (!isConfigured) {
+  if (!isConfiguredMz && !isConfiguredMango) {
     return (
       <div className="min-h-[100dvh] bg-background flex flex-col items-center justify-center p-6">
-        <div className="max-w-md w-full space-y-8 text-center">
-          <div className="mx-auto w-16 h-16 bg-primary/10 rounded-2xl flex items-center justify-center mb-6">
-            <PhoneCall className="w-8 h-8 text-primary" />
+        <div className="max-w-2xl w-full space-y-8 text-center">
+          <div className="mx-auto w-16 h-16 bg-primary/10 rounded-2xl flex items-center justify-center mb-2">
+            <Radio className="w-8 h-8 text-primary" />
           </div>
           <div className="space-y-2">
-            <h1 className="text-2xl font-bold tracking-tight text-foreground">Мои Звонки</h1>
-            <p className="text-muted-foreground text-sm leading-relaxed">
-              Ваш персональный дашборд аналитики звонков. Для начала работы необходимо настроить подключение к личному кабинету.
+            <h1 className="text-3xl font-bold tracking-tight text-foreground">Дашборд звонков</h1>
+            <p className="text-muted-foreground text-sm leading-relaxed max-w-lg mx-auto">
+              Единая сводка по вашей активности. Вы можете подключить одну или обе поддерживаемые телефонии для автоматического сбора статистики.
             </p>
           </div>
           
-          <Card className="border-border shadow-sm text-left">
-            <CardContent className="p-6 space-y-6">
-              <div className="space-y-4">
-                <div className="flex gap-3">
-                  <div className="mt-0.5 w-6 h-6 rounded-full bg-primary/10 flex items-center justify-center shrink-0">
-                    <span className="text-primary text-xs font-bold">1</span>
+          <div className="grid sm:grid-cols-2 gap-4 text-left">
+            <Card className="border-border shadow-sm hover-elevate transition-all">
+              <CardContent className="p-6 space-y-4">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-lg bg-blue-100 dark:bg-blue-900/30 flex items-center justify-center">
+                    <Phone className="w-5 h-5 text-blue-600 dark:text-blue-400" />
                   </div>
                   <div>
-                    <h3 className="font-semibold text-sm">Подключите аккаунт</h3>
-                    <p className="text-xs text-muted-foreground mt-1">Авторизация по логину/паролю или через сессионные cookies для автоматического сбора.</p>
+                    <h3 className="font-semibold">Мои Звонки</h3>
+                    <p className="text-xs text-muted-foreground">Cookies / Логин</p>
                   </div>
                 </div>
-                <div className="flex gap-3">
-                  <div className="mt-0.5 w-6 h-6 rounded-full bg-primary/10 flex items-center justify-center shrink-0">
-                    <span className="text-primary text-xs font-bold">2</span>
-                  </div>
-                  <div>
-                    <h3 className="font-semibold text-sm">Ручная загрузка (резерв)</h3>
-                    <p className="text-xs text-muted-foreground mt-1">Если автоматика не подходит, вы можете регулярно загружать CSV отчеты вручную.</p>
-                  </div>
-                </div>
-              </div>
-              
-              <div className="pt-2 flex flex-col gap-2">
-                <Button className="w-full gap-2" onClick={() => setIsSettingsOpen(true)}>
-                  Настроить подключение <ArrowRight className="w-4 h-4" />
+                <p className="text-sm text-muted-foreground line-clamp-2">
+                  Подключение к moizvonki.ru для агрегации истории и общей аналитики.
+                </p>
+                <Button className="w-full" variant="outline" onClick={() => openSettings('mz')}>
+                  Настроить
                 </Button>
-                <div className="flex items-center justify-center">
-                  <CsvUploadDialog />
+              </CardContent>
+            </Card>
+
+            <Card className="border-border shadow-sm hover-elevate transition-all border-t-4 border-t-teal-500">
+              <CardContent className="p-6 space-y-4">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-lg bg-teal-100 dark:bg-teal-900/30 flex items-center justify-center">
+                    <PlugZap className="w-5 h-5 text-teal-600 dark:text-teal-400" />
+                  </div>
+                  <div>
+                    <h3 className="font-semibold">Mango Office</h3>
+                    <p className="text-xs text-muted-foreground">Живые данные</p>
+                  </div>
                 </div>
-              </div>
-            </CardContent>
-          </Card>
+                <p className="text-sm text-muted-foreground line-clamp-2">
+                  Прямое подключение к Mango для мгновенного обновления KPI в течение дня.
+                </p>
+                <Button className="w-full bg-teal-50 text-teal-700 hover:bg-teal-100 border-teal-200" variant="outline" onClick={() => openSettings('mango')}>
+                  Подключить
+                </Button>
+              </CardContent>
+            </Card>
+          </div>
         </div>
-        <ConnectionSettings open={isSettingsOpen} onOpenChange={setIsSettingsOpen} />
+        <ConnectionSettings open={settingsOpen} onOpenChange={setSettingsOpen} defaultTab={settingsTab} />
       </div>
     );
   }
 
+  // Error handling parsing
+  const mzErrorStatus = (metricsMzError as any)?.response?.status;
+  const mzNeedsReauth = mzErrorStatus === 401 || mzErrorStatus === 400;
+  
+  const mangoErrorStatus = (kpiMangoError as any)?.response?.status;
+  const mangoNeedsReauth = mangoErrorStatus === 401;
+  const mangoIsDown = mangoErrorStatus === 502;
+
   return (
     <div className="min-h-[100dvh] bg-background">
-      {/* Top Navigation / Header */}
       <header className="sticky top-0 z-10 bg-background/80 backdrop-blur-md border-b">
         <div className="max-w-6xl mx-auto px-4 sm:px-6 h-16 flex items-center justify-between">
           <div className="flex items-center gap-3">
             <div className="w-8 h-8 bg-primary rounded-lg flex items-center justify-center">
-              <PhoneCall className="w-4 h-4 text-primary-foreground" />
+              <Radio className="w-4 h-4 text-primary-foreground" />
             </div>
             <div>
-              <h1 className="font-semibold leading-none tracking-tight">Мои Звонки</h1>
+              <h1 className="font-semibold leading-none tracking-tight">Дашборд звонков</h1>
               <p className="text-[11px] text-muted-foreground mt-0.5 flex items-center gap-1">
-                {status?.lastError ? (
-                  <span className="text-destructive flex items-center gap-1"><AlertCircle className="w-3 h-3"/> Ошибка сбора</span>
-                ) : (
-                  <span className="text-green-600 dark:text-green-500 flex items-center gap-1"><CheckCircle2 className="w-3 h-3"/> Активно</span>
-                )}
+                Объединённая сводка
               </p>
             </div>
           </div>
@@ -198,9 +247,9 @@ export default function DashboardPage() {
               size="sm" 
               className="gap-2 hidden sm:flex"
               onClick={handleRefresh}
-              disabled={refreshMetrics.isPending}
+              disabled={isRefreshing}
             >
-              <RefreshCw className={`w-4 h-4 ${refreshMetrics.isPending ? 'animate-spin' : ''}`} />
+              <RefreshCw className={`w-4 h-4 ${isRefreshing ? 'animate-spin' : ''}`} />
               Обновить
             </Button>
             <Button 
@@ -208,130 +257,226 @@ export default function DashboardPage() {
               size="icon" 
               className="sm:hidden"
               onClick={handleRefresh}
-              disabled={refreshMetrics.isPending}
+              disabled={isRefreshing}
             >
-              <RefreshCw className={`w-4 h-4 ${refreshMetrics.isPending ? 'animate-spin' : ''}`} />
+              <RefreshCw className={`w-4 h-4 ${isRefreshing ? 'animate-spin' : ''}`} />
             </Button>
             <div className="h-4 w-px bg-border mx-1"></div>
-            <ConnectionSettings />
+            <Button variant="outline" size="icon" onClick={() => openSettings('settings')}>
+              <Settings2 className="w-4 h-4 text-muted-foreground" />
+            </Button>
           </div>
         </div>
       </header>
 
       <main className="max-w-6xl mx-auto px-4 sm:px-6 py-8 space-y-8">
-        {/* Date and actions row */}
+        {/* Date and Summary */}
         <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-4">
           <div>
             <h2 className="text-2xl font-bold tracking-tight text-foreground">Сводка за сегодня</h2>
             <p className="text-sm text-muted-foreground mt-1 flex items-center gap-1.5">
               <CalendarDays className="w-4 h-4" />
               {format(new Date(), 'd MMMM yyyy', { locale: ru })}
-              {metrics?.updatedAt && (
+              {(metricsMz?.updatedAt) && (
                 <span className="ml-2 pl-2 border-l">
-                  Обновлено в {format(new Date(metrics.updatedAt), 'HH:mm')}
+                  Синхронизировано: {format(new Date(metricsMz.updatedAt), 'HH:mm')}
                 </span>
               )}
             </p>
           </div>
-          
           <div className="flex items-center gap-2">
-            {metrics?.source && <SourceBadge source={metrics.source} />}
             <CsvUploadDialog />
           </div>
         </div>
 
-        {/* Metrics Grid */}
-        {isMetricsLoading ? (
-          <div className="grid gap-4 md:grid-cols-3">
-            {[1, 2, 3].map(i => (
-              <Card key={i} className="animate-pulse">
-                <CardHeader className="flex flex-row items-center justify-between pb-2">
-                  <div className="w-24 h-4 bg-muted rounded"></div>
-                  <div className="w-8 h-8 bg-muted rounded-full"></div>
-                </CardHeader>
-                <CardContent>
-                  <div className="w-16 h-8 bg-muted rounded mb-2"></div>
-                  <div className="w-32 h-3 bg-muted rounded"></div>
-                </CardContent>
-              </Card>
-            ))}
-          </div>
-        ) : isMetricsEmpty || !metrics ? (
-          <Card className="border-dashed bg-muted/20 shadow-none">
-            <CardContent className="flex flex-col items-center justify-center p-10 text-center space-y-4">
-              <div className="w-12 h-12 bg-muted rounded-full flex items-center justify-center">
-                <Activity className="w-6 h-6 text-muted-foreground" />
+        {/* Aggregated KPI Grid */}
+        <div className="grid gap-4 md:grid-cols-3">
+          <Card className="hover-elevate transition-colors border-l-4 border-l-primary bg-primary/5">
+            <CardHeader className="flex flex-row items-center justify-between pb-2">
+              <CardTitle className="text-sm font-medium text-primary">Суммарный трафик</CardTitle>
+              <div className="w-8 h-8 rounded-full bg-primary/20 flex items-center justify-center">
+                <Clock className="w-4 h-4 text-primary" />
               </div>
-              <div>
-                <h3 className="font-semibold text-lg">Нет данных за сегодня</h3>
-                <p className="text-sm text-muted-foreground mt-1 max-w-md mx-auto">
-                  Звонки еще не зафиксированы или данные не были синхронизированы. Нажмите «Обновить» или загрузите CSV.
-                </p>
+            </CardHeader>
+            <CardContent>
+              <div className="text-3xl font-bold font-mono tracking-tight text-foreground">
+                {formatDuration(totalTraffic)}
               </div>
-              <Button onClick={handleRefresh} disabled={refreshMetrics.isPending} className="mt-2">
-                Синхронизировать сейчас
-              </Button>
+              <p className="text-xs text-muted-foreground mt-1 font-medium">
+                Мои Звонки + Mango
+              </p>
             </CardContent>
           </Card>
-        ) : (
-          <div className="grid gap-4 md:grid-cols-3">
-            <Card className="hover-elevate transition-colors border-l-4 border-l-primary">
-              <CardHeader className="flex flex-row items-center justify-between pb-2">
-                <CardTitle className="text-sm font-medium text-muted-foreground">Трафик</CardTitle>
-                <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center">
-                  <Clock className="w-4 h-4 text-primary" />
-                </div>
-              </CardHeader>
-              <CardContent>
-                <div className="text-3xl font-bold font-mono tracking-tight text-foreground">
-                  {formatDuration(metrics.trafficSeconds)}
-                </div>
-                <p className="text-xs text-muted-foreground mt-1">
-                  Общая длительность разговоров
-                </p>
-              </CardContent>
-            </Card>
-            
-            <Card className="hover-elevate transition-colors border-l-4 border-l-chart-3">
-              <CardHeader className="flex flex-row items-center justify-between pb-2">
-                <CardTitle className="text-sm font-medium text-muted-foreground">Кол-во звонков</CardTitle>
-                <div className="w-8 h-8 rounded-full bg-[hsl(var(--chart-3))]/10 flex items-center justify-center">
-                  <PhoneCall className="w-4 h-4 text-[hsl(var(--chart-3))]" />
-                </div>
-              </CardHeader>
-              <CardContent>
-                <div className="text-3xl font-bold font-mono tracking-tight text-foreground">
-                  {metrics.calls}
-                </div>
-                <p className="text-xs text-muted-foreground mt-1">
-                  Успешных соединений
-                </p>
-              </CardContent>
-            </Card>
-            
-            <Card className="hover-elevate transition-colors border-l-4 border-l-chart-2">
-              <CardHeader className="flex flex-row items-center justify-between pb-2">
-                <CardTitle className="text-sm font-medium text-muted-foreground">Плотность работы</CardTitle>
-                <div className="w-8 h-8 rounded-full bg-[hsl(var(--chart-2))]/10 flex items-center justify-center">
-                  <Activity className="w-4 h-4 text-[hsl(var(--chart-2))]" />
-                </div>
-              </CardHeader>
-              <CardContent>
-                <div className="text-3xl font-bold font-mono tracking-tight text-foreground">
-                  {metrics.density.toFixed(2)}
-                </div>
-                <p className="text-xs text-muted-foreground mt-1">
-                  Звонков в час (смена {metrics.shiftHours}ч)
-                </p>
-              </CardContent>
-            </Card>
-          </div>
-        )}
+          
+          <Card className="hover-elevate transition-colors border-l-4 border-l-chart-3 bg-[hsl(var(--chart-3))]/5">
+            <CardHeader className="flex flex-row items-center justify-between pb-2">
+              <CardTitle className="text-sm font-medium text-[hsl(var(--chart-3))]">Всего звонков</CardTitle>
+              <div className="w-8 h-8 rounded-full bg-[hsl(var(--chart-3))]/20 flex items-center justify-center">
+                <PhoneCall className="w-4 h-4 text-[hsl(var(--chart-3))]" />
+              </div>
+            </CardHeader>
+            <CardContent>
+              <div className="text-3xl font-bold font-mono tracking-tight text-foreground">
+                {totalCalls}
+              </div>
+              <p className="text-xs text-muted-foreground mt-1 font-medium">
+                Успешных соединений
+              </p>
+            </CardContent>
+          </Card>
+          
+          <Card className="hover-elevate transition-colors border-l-4 border-l-chart-2 bg-[hsl(var(--chart-2))]/5">
+            <CardHeader className="flex flex-row items-center justify-between pb-2">
+              <CardTitle className="text-sm font-medium text-[hsl(var(--chart-2))]">Плотность работы</CardTitle>
+              <div className="w-8 h-8 rounded-full bg-[hsl(var(--chart-2))]/20 flex items-center justify-center">
+                <Activity className="w-4 h-4 text-[hsl(var(--chart-2))]" />
+              </div>
+            </CardHeader>
+            <CardContent>
+              <div className="text-3xl font-bold font-mono tracking-tight text-foreground">
+                {density.toFixed(2)}
+              </div>
+              <p className="text-xs text-muted-foreground mt-1 font-medium">
+                Звонков/час (Смена {shiftHours}ч)
+              </p>
+            </CardContent>
+          </Card>
+        </div>
 
-        {/* History Chart */}
+        {/* Source Breakdowns */}
+        <h3 className="text-lg font-semibold mt-10 tracking-tight">Источники данных</h3>
+        <div className="grid gap-4 md:grid-cols-2">
+          
+          {/* MZ Source Card */}
+          <Card className="overflow-hidden">
+            <div className="h-1 w-full bg-blue-500" />
+            <CardHeader className="pb-3">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <div className="w-8 h-8 bg-blue-100 dark:bg-blue-900/30 rounded flex items-center justify-center">
+                    <Phone className="w-4 h-4 text-blue-600 dark:text-blue-400" />
+                  </div>
+                  <CardTitle className="text-base">Мои Звонки</CardTitle>
+                </div>
+                {!isConfiguredMz ? (
+                  <Badge variant="outline" className="text-muted-foreground">Отключено</Badge>
+                ) : mzNeedsReauth ? (
+                  <Badge variant="destructive" className="flex gap-1 items-center"><AlertCircle className="w-3 h-3"/> Ошибка</Badge>
+                ) : metricsMz?.source ? (
+                  <SourceBadge source={metricsMz.source} />
+                ) : (
+                  <Badge variant="outline" className="text-green-600 border-green-200 bg-green-50 dark:bg-green-900/10">Активно</Badge>
+                )}
+              </div>
+            </CardHeader>
+            <CardContent>
+              {!isConfiguredMz ? (
+                <div className="py-6 text-center space-y-3">
+                  <p className="text-sm text-muted-foreground">Не настроено подключение к сервису.</p>
+                  <Button variant="outline" size="sm" onClick={() => openSettings('mz')}>Настроить интеграцию</Button>
+                </div>
+              ) : mzNeedsReauth ? (
+                <div className="py-6 text-center space-y-3 bg-destructive/5 rounded-lg border border-destructive/10">
+                  <ServerCrash className="w-6 h-6 text-destructive mx-auto" />
+                  <p className="text-sm font-medium text-destructive">Требуется повторная авторизация</p>
+                  <Button variant="outline" size="sm" onClick={() => openSettings('mz')}>Исправить</Button>
+                </div>
+              ) : isMetricsMzLoading ? (
+                <div className="py-6 flex justify-center"><RefreshCw className="w-5 h-5 animate-spin text-muted-foreground" /></div>
+              ) : mzErrorStatus === 404 ? (
+                 <div className="py-6 text-center text-sm text-muted-foreground bg-muted/20 rounded-lg">
+                   Нет звонков за сегодня
+                 </div>
+              ) : (
+                <div className="grid grid-cols-2 gap-4 pt-2">
+                  <div>
+                    <p className="text-xs text-muted-foreground mb-1">Звонков</p>
+                    <p className="text-2xl font-mono font-semibold">{mzCalls}</p>
+                  </div>
+                  <div>
+                    <p className="text-xs text-muted-foreground mb-1">Трафик</p>
+                    <p className="text-2xl font-mono font-semibold">{formatDuration(mzTraffic)}</p>
+                  </div>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+
+          {/* Mango Source Card */}
+          <Card className="overflow-hidden">
+            <div className="h-1 w-full bg-teal-500" />
+            <CardHeader className="pb-3">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <div className="w-8 h-8 bg-teal-100 dark:bg-teal-900/30 rounded flex items-center justify-center">
+                    <PlugZap className="w-4 h-4 text-teal-600 dark:text-teal-400" />
+                  </div>
+                  <CardTitle className="text-base">Mango Office</CardTitle>
+                </div>
+                {!isConfiguredMango ? (
+                  <Badge variant="outline" className="text-muted-foreground">Отключено</Badge>
+                ) : mangoNeedsReauth ? (
+                  <Badge variant="destructive" className="flex gap-1 items-center"><AlertCircle className="w-3 h-3"/> Сессия истекла</Badge>
+                ) : mangoIsDown ? (
+                  <Badge variant="destructive" className="flex gap-1 items-center"><ServerCrash className="w-3 h-3"/> Сбой сети</Badge>
+                ) : isKpiMangoLoading ? (
+                  <Badge variant="outline" className="flex gap-1 items-center text-muted-foreground"><RefreshCw className="w-3 h-3 animate-spin"/> Live</Badge>
+                ) : (
+                  <Badge variant="outline" className="text-teal-600 border-teal-200 bg-teal-50 dark:bg-teal-900/10 flex gap-1 items-center shadow-sm">
+                    <span className="w-1.5 h-1.5 rounded-full bg-teal-500 animate-pulse"></span>
+                    Live
+                  </Badge>
+                )}
+              </div>
+            </CardHeader>
+            <CardContent>
+              {!isConfiguredMango ? (
+                <div className="py-6 text-center space-y-3">
+                  <p className="text-sm text-muted-foreground">Получайте живые данные прямо из АТС.</p>
+                  <Button variant="outline" size="sm" onClick={() => openSettings('mango')} className="text-teal-700 hover:text-teal-800 border-teal-200 hover:bg-teal-50">
+                    Подключить Mango
+                  </Button>
+                </div>
+              ) : mangoNeedsReauth ? (
+                <div className="py-6 text-center space-y-3 bg-destructive/5 rounded-lg border border-destructive/10">
+                  <p className="text-sm font-medium text-destructive">Сессия истекла</p>
+                  <Button variant="outline" size="sm" onClick={() => openSettings('mango')}>Войти заново</Button>
+                </div>
+              ) : mangoIsDown ? (
+                <div className="py-6 text-center space-y-3 bg-muted/20 rounded-lg">
+                  <p className="text-sm text-muted-foreground">Сервер Mango Office временно недоступен</p>
+                </div>
+              ) : isKpiMangoLoading && !kpiMango ? (
+                <div className="py-6 flex flex-col items-center gap-2 text-muted-foreground">
+                  <RefreshCw className="w-5 h-5 animate-spin" />
+                  <span className="text-[11px]">Идет запрос к АТС...</span>
+                </div>
+              ) : mangoErrorStatus === 404 ? (
+                 <div className="py-6 text-center text-sm text-muted-foreground bg-muted/20 rounded-lg">
+                   Нет звонков в Манго сегодня
+                 </div>
+              ) : (
+                <div className="grid grid-cols-2 gap-4 pt-2">
+                  <div>
+                    <p className="text-xs text-muted-foreground mb-1">Звонков</p>
+                    <p className="text-2xl font-mono font-semibold">{mangoCalls}</p>
+                  </div>
+                  <div>
+                    <p className="text-xs text-muted-foreground mb-1">Трафик</p>
+                    <p className="text-2xl font-mono font-semibold">{formatDuration(mangoTraffic)}</p>
+                  </div>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+
+        </div>
+
         <MetricsChart />
 
       </main>
+
+      <ConnectionSettings open={settingsOpen} onOpenChange={setSettingsOpen} defaultTab={settingsTab} />
     </div>
   );
 }
