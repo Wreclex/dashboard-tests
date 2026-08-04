@@ -23,6 +23,7 @@ import { format } from 'date-fns';
 import { ru } from 'date-fns/locale';
 
 import { ConnectionSettings } from '../components/connection-settings';
+import { TeamSetupDialog } from '../components/team-setup-dialog';
 import { CsvUploadDialog } from '../components/csv-upload';
 import { MetricsChart } from '../components/metrics-chart';
 import { TeamView } from '../components/team-view';
@@ -77,6 +78,7 @@ export default function DashboardPage({ me }: { me: TeamMember }) {
   const queryClient = useQueryClient();
   const { signOut } = useClerk();
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const [teamSetupOpen, setTeamSetupOpen] = useState(false);
   const [settingsTab, setSettingsTab] = useState('mz');
   const isManager = me.role === 'manager' || me.role === 'admin';
   const [view, setView] = useState<'mine' | 'team'>(isManager ? 'team' : 'mine');
@@ -247,6 +249,14 @@ export default function DashboardPage({ me }: { me: TeamMember }) {
           </div>
         </div>
         <ConnectionSettings open={settingsOpen} onOpenChange={setSettingsOpen} defaultTab={settingsTab} role={me.role} />
+        <TeamSetupDialog
+          open={teamSetupOpen}
+          onOpenChange={setTeamSetupOpen}
+          onOpenMango={() => {
+            setTeamSetupOpen(false);
+            openSettings('mango');
+          }}
+        />
       </div>
     );
   }
@@ -298,6 +308,12 @@ export default function DashboardPage({ me }: { me: TeamMember }) {
               <RefreshCw className={`w-4 h-4 ${isRefreshing ? 'animate-spin' : ''}`} />
               Обновить
             </Button>
+            {me.role === 'admin' && (
+              <Button variant="outline" size="sm" className="gap-2 hidden sm:flex" onClick={() => setTeamSetupOpen(true)}>
+                <Users className="w-4 h-4" />
+                Настроить команду
+              </Button>
+            )}
             <Button 
               variant="outline" 
               size="icon" 
@@ -586,6 +602,14 @@ export default function DashboardPage({ me }: { me: TeamMember }) {
       </main>
 
       <ConnectionSettings open={settingsOpen} onOpenChange={setSettingsOpen} defaultTab={settingsTab} role={me.role} />
+      <TeamSetupDialog
+        open={teamSetupOpen}
+        onOpenChange={setTeamSetupOpen}
+        onOpenMango={() => {
+          setTeamSetupOpen(false);
+          openSettings('mango');
+        }}
+      />
     </div>
   );
 }

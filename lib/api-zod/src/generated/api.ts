@@ -64,6 +64,83 @@ export const UpdateAdminUserRoleResponse = zod.object({
 
 
 /**
+ * @summary Assign or clear a Mango Office operator for a team member (admin only)
+ */
+export const UpdateAdminUserOperatorParams = zod.object({
+  "clerkUserId": zod.coerce.string()
+})
+
+
+
+
+
+export const UpdateAdminUserOperatorBody = zod.object({
+  "mangoMemberId": zod.number().min(1).nullable(),
+  "mangoMemberName": zod.string().min(1).nullable()
+}).describe('Set both fields to null to clear an assignment.')
+
+export const UpdateAdminUserOperatorResponse = zod.object({
+  "clerkUserId": zod.string(),
+  "displayName": zod.string().nullable(),
+  "email": zod.string().nullable(),
+  "role": zod.enum(['admin', 'manager', 'employee']),
+  "mangoMemberId": zod.number().nullable(),
+  "mangoMemberName": zod.string().nullable(),
+  "createdAt": zod.coerce.date()
+})
+
+
+/**
+ * @summary List team invitations (admin only)
+ */
+export const ListAdminInvitationsResponseItem = zod.object({
+  "id": zod.string(),
+  "email": zod.string(),
+  "role": zod.enum(['admin', 'manager', 'employee']),
+  "status": zod.enum(['pending', 'accepted', 'expired', 'revoked']),
+  "expiresAt": zod.coerce.date(),
+  "createdAt": zod.coerce.date(),
+  "acceptedAt": zod.coerce.date().nullable()
+})
+export const ListAdminInvitationsResponse = zod.array(ListAdminInvitationsResponseItem)
+
+
+/**
+ * @summary Create a team invitation with a pre-assigned role (admin only)
+ */
+export const createAdminInvitationBodyEmailMin = 3;
+
+
+
+export const CreateAdminInvitationBody = zod.object({
+  "email": zod.string().min(createAdminInvitationBodyEmailMin),
+  "role": zod.enum(['admin', 'manager', 'employee'])
+})
+
+export const CreateAdminInvitationResponse = zod.object({
+  "id": zod.string(),
+  "email": zod.string(),
+  "role": zod.enum(['admin', 'manager', 'employee']),
+  "status": zod.enum(['pending', 'accepted', 'expired', 'revoked']),
+  "expiresAt": zod.coerce.date(),
+  "createdAt": zod.coerce.date(),
+  "acceptedAt": zod.coerce.date().nullable()
+}).and(zod.object({
+  "token": zod.string()
+}))
+
+
+/**
+ * @summary Revoke a pending team invitation (admin only)
+ */
+export const DeleteAdminInvitationParams = zod.object({
+  "id": zod.coerce.string()
+})
+
+export const DeleteAdminInvitationResponse = zod.void()
+
+
+/**
  * Returns server health status
  * @summary Health check
  */

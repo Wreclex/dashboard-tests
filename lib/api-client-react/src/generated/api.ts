@@ -24,6 +24,7 @@ import type {
   AutoReportScheduleInput,
   AutoReportScheduleUpdate,
   ClaimOperatorBody,
+  CreatedTeamInvitation,
   GetSheetCountsParams,
   HealthStatus,
   MangoCredentialsInput,
@@ -41,7 +42,10 @@ import type {
   MoizvonkiSettingsInput,
   MoizvonkiStatus,
   SheetCounts,
+  TeamInvitation,
+  TeamInvitationInput,
   TeamMember,
+  TeamMemberOperatorUpdate,
   TelegramChannel,
   TelegramChannelInput,
   TelegramChannelUpdate,
@@ -306,6 +310,297 @@ export const useUpdateAdminUserRole = <TError = ErrorType<void>,
         TContext
       > => {
       return useMutation(getUpdateAdminUserRoleMutationOptions(options));
+    }
+
+export const getUpdateAdminUserOperatorUrl = (clerkUserId: string,) => {
+
+
+
+
+  return `/api/admin/users/${clerkUserId}/operator`
+}
+
+/**
+ * @summary Assign or clear a Mango Office operator for a team member (admin only)
+ */
+export const updateAdminUserOperator = async (clerkUserId: string,
+    teamMemberOperatorUpdate: TeamMemberOperatorUpdate, options?: Parameters<typeof customFetch>[1]): Promise<TeamMember> => {
+
+  return customFetch<TeamMember>(getUpdateAdminUserOperatorUrl(clerkUserId),
+  {
+    ...options,
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(teamMemberOperatorUpdate)
+  }
+);}
+
+
+
+
+
+export const getUpdateAdminUserOperatorMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateAdminUserOperator>>, TError,{clerkUserId: string;data: BodyType<TeamMemberOperatorUpdate>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof updateAdminUserOperator>>, TError,{clerkUserId: string;data: BodyType<TeamMemberOperatorUpdate>}, TContext> => {
+
+const mutationKey = ['updateAdminUserOperator'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof updateAdminUserOperator>>, {clerkUserId: string;data: BodyType<TeamMemberOperatorUpdate>}> = (props) => {
+          const {clerkUserId,data} = props ?? {};
+
+          return  updateAdminUserOperator(clerkUserId,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type UpdateAdminUserOperatorMutationResult = NonNullable<Awaited<ReturnType<typeof updateAdminUserOperator>>>
+    export type UpdateAdminUserOperatorMutationBody = BodyType<TeamMemberOperatorUpdate>
+    export type UpdateAdminUserOperatorMutationError = ErrorType<void>
+
+    /**
+ * @summary Assign or clear a Mango Office operator for a team member (admin only)
+ */
+export const useUpdateAdminUserOperator = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateAdminUserOperator>>, TError,{clerkUserId: string;data: BodyType<TeamMemberOperatorUpdate>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof updateAdminUserOperator>>,
+        TError,
+        {clerkUserId: string;data: BodyType<TeamMemberOperatorUpdate>},
+        TContext
+      > => {
+      return useMutation(getUpdateAdminUserOperatorMutationOptions(options));
+    }
+
+export const getListAdminInvitationsUrl = () => {
+
+
+
+
+  return `/api/admin/invitations`
+}
+
+/**
+ * @summary List team invitations (admin only)
+ */
+export const listAdminInvitations = async ( options?: Parameters<typeof customFetch>[1]): Promise<TeamInvitation[]> => {
+
+  return customFetch<TeamInvitation[]>(getListAdminInvitationsUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getListAdminInvitationsQueryKey = () => {
+    return [
+    `/api/admin/invitations`
+    ] as const;
+    }
+
+
+export const getListAdminInvitationsQueryOptions = <TData = Awaited<ReturnType<typeof listAdminInvitations>>, TError = ErrorType<void>>( options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listAdminInvitations>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getListAdminInvitationsQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listAdminInvitations>>> = ({ signal }) => listAdminInvitations({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listAdminInvitations>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type ListAdminInvitationsQueryResult = NonNullable<Awaited<ReturnType<typeof listAdminInvitations>>>
+export type ListAdminInvitationsQueryError = ErrorType<void>
+
+
+/**
+ * @summary List team invitations (admin only)
+ */
+
+export function useListAdminInvitations<TData = Awaited<ReturnType<typeof listAdminInvitations>>, TError = ErrorType<void>>(
+  options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listAdminInvitations>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getListAdminInvitationsQueryOptions(options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getCreateAdminInvitationUrl = () => {
+
+
+
+
+  return `/api/admin/invitations`
+}
+
+/**
+ * @summary Create a team invitation with a pre-assigned role (admin only)
+ */
+export const createAdminInvitation = async (teamInvitationInput: TeamInvitationInput, options?: Parameters<typeof customFetch>[1]): Promise<CreatedTeamInvitation> => {
+
+  return customFetch<CreatedTeamInvitation>(getCreateAdminInvitationUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(teamInvitationInput)
+  }
+);}
+
+
+
+
+
+export const getCreateAdminInvitationMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createAdminInvitation>>, TError,{data: BodyType<TeamInvitationInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof createAdminInvitation>>, TError,{data: BodyType<TeamInvitationInput>}, TContext> => {
+
+const mutationKey = ['createAdminInvitation'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof createAdminInvitation>>, {data: BodyType<TeamInvitationInput>}> = (props) => {
+          const {data} = props ?? {};
+
+          return  createAdminInvitation(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type CreateAdminInvitationMutationResult = NonNullable<Awaited<ReturnType<typeof createAdminInvitation>>>
+    export type CreateAdminInvitationMutationBody = BodyType<TeamInvitationInput>
+    export type CreateAdminInvitationMutationError = ErrorType<void>
+
+    /**
+ * @summary Create a team invitation with a pre-assigned role (admin only)
+ */
+export const useCreateAdminInvitation = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createAdminInvitation>>, TError,{data: BodyType<TeamInvitationInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof createAdminInvitation>>,
+        TError,
+        {data: BodyType<TeamInvitationInput>},
+        TContext
+      > => {
+      return useMutation(getCreateAdminInvitationMutationOptions(options));
+    }
+
+export const getDeleteAdminInvitationUrl = (id: string,) => {
+
+
+
+
+  return `/api/admin/invitations/${id}`
+}
+
+/**
+ * @summary Revoke a pending team invitation (admin only)
+ */
+export const deleteAdminInvitation = async (id: string, options?: Parameters<typeof customFetch>[1]): Promise<void> => {
+
+  return customFetch<void>(getDeleteAdminInvitationUrl(id),
+  {
+    ...options,
+    method: 'DELETE'
+
+
+  }
+);}
+
+
+
+
+
+export const getDeleteAdminInvitationMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof deleteAdminInvitation>>, TError,{id: string}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof deleteAdminInvitation>>, TError,{id: string}, TContext> => {
+
+const mutationKey = ['deleteAdminInvitation'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof deleteAdminInvitation>>, {id: string}> = (props) => {
+          const {id} = props ?? {};
+
+          return  deleteAdminInvitation(id,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type DeleteAdminInvitationMutationResult = NonNullable<Awaited<ReturnType<typeof deleteAdminInvitation>>>
+
+    export type DeleteAdminInvitationMutationError = ErrorType<void>
+
+    /**
+ * @summary Revoke a pending team invitation (admin only)
+ */
+export const useDeleteAdminInvitation = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof deleteAdminInvitation>>, TError,{id: string}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof deleteAdminInvitation>>,
+        TError,
+        {id: string},
+        TContext
+      > => {
+      return useMutation(getDeleteAdminInvitationMutationOptions(options));
     }
 
 export const getHealthCheckUrl = () => {

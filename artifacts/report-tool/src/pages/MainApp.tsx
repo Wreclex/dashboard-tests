@@ -9,6 +9,7 @@ import DefaultsModal from '@/components/DefaultsModal';
 import AutoReportModal from '@/components/AutoReportModal';
 import MangoModal from '@/components/MangoModal';
 import AdminUsersModal from '@/components/AdminUsersModal';
+import TeamSetupModal from '@/components/TeamSetupModal';
 import { useReportState, buildPreviewText, formatDate } from '@/hooks/useReportState';
 import { useGetSheetCounts, getGetSheetCountsQueryKey, useGetMangoKpi, getGetMangoKpiQueryKey, useGetMe, getGetMeQueryKey } from '@workspace/api-client-react';
 import { Settings, Send, RotateCcw, Copy, Check, LogIn, LogOut, SlidersHorizontal, RefreshCw, Clock3, Phone, Users } from 'lucide-react';
@@ -34,6 +35,7 @@ export default function MainApp() {
   const [autoOpen, setAutoOpen] = useState(false);
   const [mangoOpen, setMangoOpen] = useState(false);
   const [adminOpen, setAdminOpen] = useState(false);
+  const [teamSetupOpen, setTeamSetupOpen] = useState(false);
 
   // Team profile — registers the user on first login and carries their role.
   const { data: me, error: meError } = useGetMe({
@@ -434,11 +436,11 @@ export default function MainApp() {
                 )}
                 {isAdmin && (
                   <button
-                    onClick={() => setAdminOpen(true)}
+                    onClick={() => setTeamSetupOpen(true)}
                     className="press-sm flex items-center gap-1.5 h-8 px-3 rounded-full text-[10px] font-bold uppercase tracking-[0.14em] bg-primary/15 text-primary hover:bg-primary/25 transition-colors"
                   >
                     <Users size={11} />
-                    Люди
+                    Команда
                   </button>
                 )}
                 <button
@@ -539,6 +541,14 @@ export default function MainApp() {
         open={adminOpen}
         onClose={() => setAdminOpen(false)}
         currentUserId={userId}
+      />
+      <TeamSetupModal
+        open={teamSetupOpen}
+        onClose={() => setTeamSetupOpen(false)}
+        onOpenMango={() => {
+          setTeamSetupOpen(false);
+          setMangoOpen(true);
+        }}
       />
     </div>
   );

@@ -57,6 +57,20 @@
       "when": 1785831000000,
       "tag": "0007_secure_team_bootstrap",
       "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1785835000000,
+      "tag": "0008_mango_snapshots",
+      "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "7",
+      "when": 1785836000000,
+      "tag": "0009_team_invitations",
+      "breakpoints": true
     }
   ]
 }

@@ -8,9 +8,9 @@
  */
 
 import { clerkClient, getAuth } from "@clerk/express";
-import { db, teamMembers, moizvonkiConnections, moizvonkiMetrics, moizvonkiSettings, mangoCredentials } from "@workspace/db";
-import { and, eq, sql } from "drizzle-orm";
-import type { TeamMember, TeamRole } from "@workspace/db";
+import { db, teamInvitations, teamMembers, moizvonkiConnections, moizvonkiMetrics, moizvonkiSettings, mangoCredentials } from "@workspace/db";
+import { and, eq, gt, isNull, sql } from "drizzle-orm";
+import type { TeamInvitation, TeamMember, TeamRole } from "@workspace/db";
 import type { RequestHandler } from "express";
 
 export const TEAM_ROLES: readonly TeamRole[] = ["admin", "manager", "employee"];
@@ -35,6 +35,29 @@ export function serializeTeamMember(row: TeamMember) {
     mangoMemberId: row.mangoMemberId ?? null,
     mangoMemberName: row.mangoMemberName ?? null,
     createdAt: row.createdAt.toISOString(),
+  };
+}
+
+export function normalizeTeamEmail(email: string): string {
+  return email.trim().toLocaleLowerCase();
+}
+
+export function invitationStatus(row: TeamInvitation, now: Date = new Date()) {
+  if (row.revokedAt) return "revoked" as const;
+  if (row.acceptedAt) return "accepted" as const;
+  if (row.expiresAt <= now) return "expired" as const;
+  return "pending" as const;
+}
+
+export function serializeTeamInvitation(row: TeamInvitation) {
+  return {
+    id: row.id,
+    email: row.email,
+    role: row.role as TeamRole,
+    status: invitationStatus(row),
+    expiresAt: row.expiresAt.toISOString(),
+    createdAt: row.createdAt.toISOString(),
+    acceptedAt: row.acceptedAt?.toISOString() ?? null,
   };
 }
 
@@ -87,12 +110,36 @@ export async function ensureTeamMember(userId: string): Promise<TeamMember> {
     const [{ count }] = await tx
       .select({ count: sql<number>`count(*)::int` })
       .from(teamMembers);
-    const role: TeamRole = count === 0 ? "admin" : "employee";
+    // Invitations are intentionally an assignment, not an access gate: people
+    // may still sign up normally, but a pre-assigned role applies immediately
+    // when their Clerk email first reaches us.
+    const activeInvitation = email
+      ? (await tx
+          .select()
+          .from(teamInvitations)
+          .where(
+            and(
+              sql`lower(${teamInvitations.email}) = ${normalizeTeamEmail(email)}`,
+              isNull(teamInvitations.acceptedAt),
+              isNull(teamInvitations.revokedAt),
+              gt(teamInvitations.expiresAt, new Date()),
+            ),
+          )
+          .limit(1))[0] ?? null
+      : null;
+    const role: TeamRole = count === 0 ? "admin" : (activeInvitation?.role as TeamRole | undefined) ?? "employee";
     const [row] = await tx
       .insert(teamMembers)
       .values({ clerkUserId: userId, displayName, email, role })
       .returning();
     if (!row) throw new Error("team member registration failed");
+
+    if (activeInvitation) {
+      await tx
+        .update(teamInvitations)
+        .set({ acceptedAt: new Date(), acceptedByClerkUserId: userId })
+        .where(eq(teamInvitations.id, activeInvitation.id));
+    }
 
     if (role === "admin") {
       // All legacy moves succeed or none do. A freshly registered user cannot

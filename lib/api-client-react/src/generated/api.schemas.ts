@@ -149,6 +149,53 @@ export interface UpdateUserRoleBody {
   role: TeamRole;
 }
 
+/**
+ * Set both fields to null to clear an assignment.
+ */
+export interface TeamMemberOperatorUpdate {
+  /**
+     * @minimum 1
+     * @nullable
+     */
+  mangoMemberId: number | null;
+  /**
+     * @minLength 1
+     * @nullable
+     */
+  mangoMemberName: string | null;
+}
+
+export type InvitationStatus = typeof InvitationStatus[keyof typeof InvitationStatus];
+
+
+export const InvitationStatus = {
+  pending: 'pending',
+  accepted: 'accepted',
+  expired: 'expired',
+  revoked: 'revoked',
+} as const;
+
+export interface TeamInvitation {
+  id: string;
+  email: string;
+  role: TeamRole;
+  status: InvitationStatus;
+  expiresAt: string;
+  createdAt: string;
+  /** @nullable */
+  acceptedAt: string | null;
+}
+
+export interface TeamInvitationInput {
+  /** @minLength 3 */
+  email: string;
+  role: TeamRole;
+}
+
+export type CreatedTeamInvitation = TeamInvitation & {
+  token: string;
+};
+
 export interface MangoOperator {
   memberId: number;
   memberName: string;

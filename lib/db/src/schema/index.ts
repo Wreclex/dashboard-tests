@@ -23,3 +23,4 @@ export * from "./mangoCredentials";
 export * from "./mangoKpiSnapshots";
 export * from "./moizvonki";
 export * from "./teamMembers";
+export * from "./teamInvitations";

@@ -100,7 +100,9 @@ function DashboardGate() {
     );
   }
 
-  if (!me.mangoMemberId && !skipped) {
+  // Employees choose their own operator. Admins/managers can open the team
+  // setup instead of being blocked by an operator choice on first login.
+  if (me.role === 'employee' && !me.mangoMemberId && !skipped) {
     return <Onboarding onDone={() => setSkipped(true)} />;
   }
 
