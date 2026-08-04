@@ -74,6 +74,13 @@ export const REQUEST_FIELDS = [
 
 /** Exact field names as defined in the Mango dashboard bundle's fieldsDB map. */
 export const FIELD_CALLS = "count-received-calls";
+/**
+ * Total outbound dial attempts — the primary "Кол-во звонков" metric for a
+ * sales manager. Verified live 2026-08: `count-received-calls` counts ONLY
+ * incoming calls, so an outbound-only operator showed 0 calls with non-zero
+ * traffic. `count-outbound-total-calls` carries the dial attempts.
+ */
+export const FIELD_CALLS_OUTBOUND = "count-outbound-total-calls";
 export const FIELD_TRAFFIC = "total-time-external-calls";
 
 // ─── Error types ──────────────────────────────────────────────────────────────
@@ -144,9 +151,13 @@ export function parseTrafficToSeconds(value: unknown): number | null {
   return null;
 }
 
-/** Extract KPI from one row using EXACT field names from the bundle. */
+/**
+ * Extract KPI from one row using EXACT field names from the bundle.
+ * Calls = outbound dial attempts (FIELD_CALLS_OUTBOUND); falls back to
+ * received calls for deployments where the outbound field is absent.
+ */
 function extractRow(row: MangoRow): MangoKpi | null {
-  const calls = toFiniteNumber(row[FIELD_CALLS]);
+  const calls = toFiniteNumber(row[FIELD_CALLS_OUTBOUND]) ?? toFiniteNumber(row[FIELD_CALLS]);
   const trafficSeconds = parseTrafficToSeconds(row[FIELD_TRAFFIC]);
   if (calls === null || trafficSeconds === null) return null;
   if (calls < 0 || trafficSeconds < 0) return null;
