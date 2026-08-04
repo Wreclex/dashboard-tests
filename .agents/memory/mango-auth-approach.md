@@ -12,6 +12,7 @@ description: Mango KPI API requires the RS256 jwt_token from CCC localStorage se
 - `jwt_token` TTL ≈ 20 h → one successful login per day is enough.
 - Mango **refresh tokens cannot mint RS256 JWTs** — the refresh tier was removed from the KPI flow; cached jwt_token → headless re-login are the only tiers.
 - Mango enforces single-session: a headless login may kick the user's own CCC session (and vice versa). Tolerable because one login/day suffices — logins run at report time.
+- The GroupId[] report returns **one row per member of the groups** — results MUST be scoped to the token's operator or the KPI sum includes every colleague's calls/traffic. The member id comes from the jwt itself (`payload.data.member_id`, object or JSON-string form); an undecodable member id must fail closed, never aggregate all members.
 
 **Why:** Earlier attempts (Bearer auth_token, query-param jwt, JSON body, refresh-token exchange, group-list/token-exchange endpoints) all failed against production; only the captured browser-traffic form-body protocol returned real KPI data.
 

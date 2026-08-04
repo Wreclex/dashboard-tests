@@ -14,6 +14,7 @@ import {
   MANGO_RESULT_POLL_ATTEMPTS,
   MangoKpiUnavailableError,
   MangoTokenExpiredError,
+  decodeMangoMemberId,
   extractReportKey,
   fetchMangoKpi,
   formatMangoTraffic,
@@ -53,6 +54,10 @@ function recordingFetch(
     return responses[i++]!;
   };
 }
+
+/** A structurally valid RS256-style JWT carrying member_id in payload.data. */
+const TEST_MEMBER_ID = 7;
+const TEST_TOKEN = `h.${Buffer.from(JSON.stringify({ data: { member_id: TEST_MEMBER_ID } })).toString("base64url")}.s`;
 
 // ─── Schema parser — pure, no fetch ──────────────────────────────────────────
 
@@ -132,6 +137,66 @@ test("parse: ignores rows missing required fields; only counts valid rows", () =
   assert.deepEqual(parse(payload), { calls: 10, trafficSeconds: 600 });
 });
 
+// ─── Member scoping (the "8 минут без звонков" regression) ───────────────────
+
+test("parse: memberId scopes the report to the operator's own row only", () => {
+  // Live regression: the GroupId[] report returned 873 rows (one per group
+  // member); the unfiltered sum added colleagues' outbound-call traffic to
+  // the user's KPI while the user's own row was zero.
+  const payload = {
+    data: [
+      { member_id: 20312007, "count-received-calls": 0, "total-time-external-calls": "00:00:00" },
+      { member_id: 20354209, "count-received-calls": 5, "total-time-external-calls": "00:02:47" },
+      { member_id: 20381271, "count-received-calls": 3, "total-time-external-calls": "00:02:22" },
+    ],
+  };
+  assert.deepEqual(parse(payload, 20312007), { calls: 0, trafficSeconds: 0 });
+});
+
+test("parse: memberId sums multiple rows of the same member only", () => {
+  const payload = {
+    data: [
+      { member_id: 7, "count-received-calls": 2, "total-time-external-calls": 120 },
+      { member_id: 8, "count-received-calls": 9, "total-time-external-calls": 900 },
+      { member_id: 7, "count-received-calls": 1, "total-time-external-calls": 60 },
+    ],
+  };
+  assert.deepEqual(parse(payload, 7), { calls: 3, trafficSeconds: 180 });
+});
+
+test("parse: memberId with no matching row → null (fail closed)", () => {
+  const payload = {
+    data: [{ member_id: 8, "count-received-calls": 9, "total-time-external-calls": 900 }],
+  };
+  assert.equal(parse(payload, 7), null);
+});
+
+test("parse: memberId compares loosely (string row id vs number)", () => {
+  const payload = {
+    data: [{ member_id: "7", "count-received-calls": 4, "total-time-external-calls": 240 }],
+  };
+  assert.deepEqual(parse(payload, 7), { calls: 4, trafficSeconds: 240 });
+});
+
+// ─── decodeMangoMemberId ──────────────────────────────────────────────────────
+
+test("decodeMangoMemberId: reads member_id from payload.data (object and string forms)", () => {
+  const make = (data: unknown) =>
+    `h.${Buffer.from(JSON.stringify({ data })).toString("base64url")}.s`;
+  assert.equal(decodeMangoMemberId(make({ member_id: 20312007 })), 20312007);
+  assert.equal(decodeMangoMemberId(make(JSON.stringify({ member_id: 20312007 }))), 20312007);
+});
+
+test("decodeMangoMemberId: unexpected shapes → null", () => {
+  assert.equal(decodeMangoMemberId("not-a-jwt"), null);
+  assert.equal(decodeMangoMemberId("a.b.c"), null);
+  assert.equal(decodeMangoMemberId(`h.${Buffer.from("{}").toString("base64url")}.s`), null);
+  assert.equal(
+    decodeMangoMemberId(`h.${Buffer.from(JSON.stringify({ data: { member_id: -5 } })).toString("base64url")}.s`),
+    null,
+  );
+});
+
 // ─── extractReportKey ─────────────────────────────────────────────────────────
 
 test("extractReportKey: returns key string from handshake response", () => {
@@ -183,10 +248,10 @@ test("fetchMangoKpi: optimistic path — data in handshake response", async () =
   const stub = sequentialFetch([
     jsonResponse({
       key: "k1",
-      data: [{ date: "2026-08-03", "count-received-calls": 20, "total-time-external-calls": 1200 }],
+      data: [{ member_id: TEST_MEMBER_ID, date: "2026-08-03", "count-received-calls": 20, "total-time-external-calls": 1200 }],
     }),
   ]);
-  assert.deepEqual(await fetchMangoKpi("test-token", [111], stub, 0), { calls: 20, trafficSeconds: 1200 });
+  assert.deepEqual(await fetchMangoKpi(TEST_TOKEN, [111], stub, 0), { calls: 20, trafficSeconds: 1200 });
 });
 
 test("fetchMangoKpi: two-step protocol — POST handshake then POST result", async () => {
@@ -195,20 +260,20 @@ test("fetchMangoKpi: two-step protocol — POST handshake then POST result", asy
     [
       jsonResponse({ key: "report-key-xyz" }), // step 1
       jsonResponse({
-        data: [{ date: "2026-08-03", "count-received-calls": 55, "total-time-external-calls": "00:55:00" }],
+        data: [{ member_id: TEST_MEMBER_ID, date: "2026-08-03", "count-received-calls": 55, "total-time-external-calls": "00:55:00" }],
       }),                                        // step 2
     ],
     calls,
   );
 
-  const result = await fetchMangoKpi("my-token", [111, 222], stub, 0);
+  const result = await fetchMangoKpi(TEST_TOKEN, [111, 222], stub, 0);
 
   assert.deepEqual(result, { calls: 55, trafficSeconds: 3300 });
   assert.equal(calls.length, 2);
   // Step 1: handshake to oper-kpi2 — form-urlencoded body with GroupId[] + jwt_token
   assert.equal(calls[0]!.url, MANGO_KPI_URL);
   const p0 = calls[0]!.params;
-  assert.equal(p0.get("jwt_token"), "my-token");
+  assert.equal(p0.get("jwt_token"), TEST_TOKEN);
   assert.deepEqual(p0.getAll("GroupId[]"), ["111", "222"]);
   assert.ok(p0.get("FromDate"), "handshake must include FromDate");
   assert.equal(p0.get("FromDate"), p0.get("UntilDate"));
@@ -223,7 +288,7 @@ test("fetchMangoKpi: two-step protocol — POST handshake then POST result", asy
   assert.equal(calls[1]!.url, MANGO_KPI_RESULT_URL);
   const p1 = calls[1]!.params;
   assert.equal(p1.get("key"), "report-key-xyz");
-  assert.equal(p1.get("jwt_token"), "my-token");
+  assert.equal(p1.get("jwt_token"), TEST_TOKEN);
   assert.deepEqual(p1.getAll("GroupId[]"), ["111", "222"]);
 });
 
@@ -233,12 +298,12 @@ test("fetchMangoKpi: FromDate and UntilDate are equal (today only)", async () =>
     [
       jsonResponse({ key: "k" }),
       jsonResponse({
-        data: [{ date: "2026-08-03", "count-received-calls": 1, "total-time-external-calls": 60 }],
+        data: [{ member_id: TEST_MEMBER_ID, date: "2026-08-03", "count-received-calls": 1, "total-time-external-calls": 60 }],
       }),
     ],
     calls,
   );
-  await fetchMangoKpi("tok", [111], stub, 0);
+  await fetchMangoKpi(TEST_TOKEN, [111], stub, 0);
   const p = calls[0]!.params;
   assert.equal(p.get("FromDate"), p.get("UntilDate"), "FromDate must equal UntilDate");
   assert.match(p.get("FromDate")!, /^\d{4}-\d{2}-\d{2}$/);
@@ -251,24 +316,24 @@ test("fetchMangoKpi: retries result endpoint when not ready (empty response)", a
       jsonResponse({ key: "k2" }),       // handshake
       jsonResponse({ data: [] }),         // poll 1: not ready
       jsonResponse({
-        data: [{ date: "2026-08-03", "count-received-calls": 3, "total-time-external-calls": 180 }],
+        data: [{ member_id: TEST_MEMBER_ID, date: "2026-08-03", "count-received-calls": 3, "total-time-external-calls": 180 }],
       }),                                  // poll 2: ready
     ],
     calls,
   );
-  const result = await fetchMangoKpi("tok", [111], stub, 0);
+  const result = await fetchMangoKpi(TEST_TOKEN, [111], stub, 0);
   assert.deepEqual(result, { calls: 3, trafficSeconds: 180 });
   assert.equal(calls.length, 3); // 1 handshake + 2 result polls
 });
 
 test("fetchMangoKpi: 401 on handshake → MangoTokenExpiredError", async () => {
   const stub = sequentialFetch([jsonResponse({}, 401)]);
-  await assert.rejects(() => fetchMangoKpi("tok", [111], stub, 0), MangoTokenExpiredError);
+  await assert.rejects(() => fetchMangoKpi(TEST_TOKEN, [111], stub, 0), MangoTokenExpiredError);
 });
 
 test("fetchMangoKpi: 403 on handshake → MangoTokenExpiredError", async () => {
   const stub = sequentialFetch([jsonResponse({}, 403)]);
-  await assert.rejects(() => fetchMangoKpi("tok", [111], stub, 0), MangoTokenExpiredError);
+  await assert.rejects(() => fetchMangoKpi(TEST_TOKEN, [111], stub, 0), MangoTokenExpiredError);
 });
 
 test("fetchMangoKpi: 401 on result endpoint → MangoTokenExpiredError", async () => {
@@ -276,7 +341,7 @@ test("fetchMangoKpi: 401 on result endpoint → MangoTokenExpiredError", async (
     jsonResponse({ key: "k" }),
     jsonResponse({}, 401),
   ]);
-  await assert.rejects(() => fetchMangoKpi("tok", [111], stub, 0), MangoTokenExpiredError);
+  await assert.rejects(() => fetchMangoKpi(TEST_TOKEN, [111], stub, 0), MangoTokenExpiredError);
 });
 
 test("fetchMangoKpi: 403 on result endpoint → MangoTokenExpiredError", async () => {
@@ -284,17 +349,17 @@ test("fetchMangoKpi: 403 on result endpoint → MangoTokenExpiredError", async (
     jsonResponse({ key: "k" }),
     jsonResponse({}, 403),
   ]);
-  await assert.rejects(() => fetchMangoKpi("tok", [111], stub, 0), MangoTokenExpiredError);
+  await assert.rejects(() => fetchMangoKpi(TEST_TOKEN, [111], stub, 0), MangoTokenExpiredError);
 });
 
 test("fetchMangoKpi: 500 on handshake → MangoKpiUnavailableError", async () => {
   const stub = sequentialFetch([jsonResponse({ error: "server error" }, 500)]);
-  await assert.rejects(() => fetchMangoKpi("tok", [111], stub, 0), MangoKpiUnavailableError);
+  await assert.rejects(() => fetchMangoKpi(TEST_TOKEN, [111], stub, 0), MangoKpiUnavailableError);
 });
 
 test("fetchMangoKpi: handshake returns no key and no data → MangoKpiUnavailableError", async () => {
   const stub = sequentialFetch([jsonResponse({ unrelated: "stuff" })]);
-  await assert.rejects(() => fetchMangoKpi("tok", [111], stub, 0), MangoKpiUnavailableError);
+  await assert.rejects(() => fetchMangoKpi(TEST_TOKEN, [111], stub, 0), MangoKpiUnavailableError);
 });
 
 test("fetchMangoKpi: exhausts all result polls → MangoKpiUnavailableError", async () => {
@@ -303,7 +368,7 @@ test("fetchMangoKpi: exhausts all result polls → MangoKpiUnavailableError", as
     ...Array.from({ length: MANGO_RESULT_POLL_ATTEMPTS }, () => jsonResponse({ data: [] })),
   ];
   const stub = sequentialFetch(responses);
-  await assert.rejects(() => fetchMangoKpi("tok", [111], stub, 0), MangoKpiUnavailableError);
+  await assert.rejects(() => fetchMangoKpi(TEST_TOKEN, [111], stub, 0), MangoKpiUnavailableError);
 });
 
 test("fetchMangoKpi: result arrives on the final allowed poll attempt", async () => {
@@ -316,10 +381,10 @@ test("fetchMangoKpi: result arrives on the final allowed poll attempt", async ()
     jsonResponse({ key: "kFinal" }),                      // handshake
     ...emptyPolls,                                         // polls 1..5: not ready
     jsonResponse({                                         // poll 6: ready
-      data: [{ date: "2026-08-03", "count-received-calls": 7, "total-time-external-calls": 420 }],
+      data: [{ member_id: TEST_MEMBER_ID, date: "2026-08-03", "count-received-calls": 7, "total-time-external-calls": 420 }],
     }),
   ]);
-  const result = await fetchMangoKpi("tok", [111], stub, 0);
+  const result = await fetchMangoKpi(TEST_TOKEN, [111], stub, 0);
   assert.deepEqual(result, { calls: 7, trafficSeconds: 420 });
 });
 
@@ -337,7 +402,7 @@ test("fetchMangoKpi: totalTimeoutMs=0 → MangoKpiUnavailableError (pre-aborted 
     }
     return jsonResponse({ key: "should-not-reach" });
   };
-  await assert.rejects(() => fetchMangoKpi("tok", [111], stub, 0, 0), MangoKpiUnavailableError);
+  await assert.rejects(() => fetchMangoKpi(TEST_TOKEN, [111], stub, 0, 0), MangoKpiUnavailableError);
   assert.equal(calls, 1, "only the handshake call should be attempted with a pre-aborted signal");
 });
 
@@ -376,7 +441,7 @@ test("fetchMangoKpi: stalling handshake is aborted within totalTimeoutMs budget"
   // aborted by its time-limited AbortSignal before the budget elapses.
   const stub = stallingFetch(3_600_000);
   const start = Date.now();
-  await assert.rejects(() => fetchMangoKpi("tok", [111], stub, 0, 50), MangoKpiUnavailableError);
+  await assert.rejects(() => fetchMangoKpi(TEST_TOKEN, [111], stub, 0, 50), MangoKpiUnavailableError);
   // Must complete well inside the per-request limit — only limited by the budget.
   assert.ok(Date.now() - start < 5_000, "stalling handshake should be aborted within budget");
 });
@@ -392,7 +457,7 @@ test("fetchMangoKpi: deadline exhausted during poll-sleep — rejects within bud
     return jsonResponse({ data: [] }); // result: not ready
   };
   const start = Date.now();
-  await assert.rejects(() => fetchMangoKpi("tok", [111], stub, 3_000, 50), MangoKpiUnavailableError);
+  await assert.rejects(() => fetchMangoKpi(TEST_TOKEN, [111], stub, 3_000, 50), MangoKpiUnavailableError);
   const elapsed = Date.now() - start;
   assert.ok(elapsed < 1_000, `expected completion in < 1 000 ms (got ${elapsed} ms); poll sleep was not capped`);
 });
@@ -411,14 +476,14 @@ test("fetchMangoKpi: stalling result request is aborted within totalTimeoutMs bu
     return stallingFetch(3_600_000)(url, init);
   };
   const start = Date.now();
-  await assert.rejects(() => fetchMangoKpi("tok", [111], stub, 0, 200), MangoKpiUnavailableError);
+  await assert.rejects(() => fetchMangoKpi(TEST_TOKEN, [111], stub, 0, 200), MangoKpiUnavailableError);
   assert.ok(Date.now() - start < 5_000, "stalling result request should be aborted within budget");
   assert.ok(call >= 2, "at least the handshake and one result request should be attempted");
 });
 
 test("fetchMangoKpi: network error on handshake → MangoKpiUnavailableError", async () => {
   const stub: FetchFn = async () => { throw new Error("network timeout"); };
-  await assert.rejects(() => fetchMangoKpi("tok", [111], stub, 0), MangoKpiUnavailableError);
+  await assert.rejects(() => fetchMangoKpi(TEST_TOKEN, [111], stub, 0), MangoKpiUnavailableError);
 });
 
 test("fetchMangoKpi: empty token → MangoKpiUnavailableError (no fetch calls)", async () => {
@@ -537,17 +602,63 @@ test("fetchMangoKpi: empty operator groups → MangoKpiUnavailableError (no fetc
   await assert.rejects(() => fetchMangoKpi("tok", [], stub, 0), MangoKpiUnavailableError);
 });
 
+// ─── Member scoping across data/grouped + fail-closed decode ────────────────
+
+test("parse: member row present only in grouped is still found", () => {
+  const payload = {
+    data: [{ member_id: 8, "count-received-calls": 9, "total-time-external-calls": 900 }],
+    grouped: [{ member_id: 7, "count-received-calls": 4, "total-time-external-calls": 240 }],
+  };
+  assert.deepEqual(parse(payload, 7), { calls: 4, trafficSeconds: 240 });
+});
+
+test("parse: data with a valid member row is preferred over grouped", () => {
+  const payload = {
+    data: [{ member_id: 7, "count-received-calls": 4, "total-time-external-calls": 240 }],
+    grouped: [{ member_id: 7, "count-received-calls": 99, "total-time-external-calls": 9999 }],
+  };
+  assert.deepEqual(parse(payload, 7), { calls: 4, trafficSeconds: 240 });
+});
+
+test("parse: data whose member rows are invalid falls through to grouped", () => {
+  const payload = {
+    data: [{ member_id: 7, unrelated: "noise" }],
+    grouped: [{ member_id: 7, "count-received-calls": 4, "total-time-external-calls": 240 }],
+  };
+  assert.deepEqual(parse(payload, 7), { calls: 4, trafficSeconds: 240 });
+});
+
+test("fetchMangoKpi: undecodable jwt → MangoKpiUnavailableError (no fetch calls)", async () => {
+  let calls = 0;
+  const stub: FetchFn = async () => { calls++; throw new Error("should not be called"); };
+  await assert.rejects(() => fetchMangoKpi("not-a-jwt", [111], stub, 0), MangoKpiUnavailableError);
+  assert.equal(calls, 0);
+});
+
+test("fetchMangoKpi: keeps polling when early results lack the member row", async () => {
+  const stub = sequentialFetch([
+    jsonResponse({ key: "k-mixed" }),                                   // handshake
+    jsonResponse({                                                      // poll 1: only colleagues
+      data: [{ member_id: 8, "count-received-calls": 9, "total-time-external-calls": 900 }],
+    }),
+    jsonResponse({                                                      // poll 2: operator row arrives
+      data: [{ member_id: TEST_MEMBER_ID, "count-received-calls": 3, "total-time-external-calls": 180 }],
+    }),
+  ]);
+  assert.deepEqual(await fetchMangoKpi(TEST_TOKEN, [111], stub, 0), { calls: 3, trafficSeconds: 180 });
+});
+
 test("fetchMangoKpi: non-positive group ids are filtered out", async () => {
   const calls: Array<{ url: string; params: URLSearchParams }> = [];
   const stub = recordingFetch(
     [
       jsonResponse({
-        data: [{ date: "2026-08-03", "count-received-calls": 2, "total-time-external-calls": 120 }],
+        data: [{ member_id: TEST_MEMBER_ID, date: "2026-08-03", "count-received-calls": 2, "total-time-external-calls": 120 }],
       }),
     ],
     calls,
   );
-  const result = await fetchMangoKpi("tok", [0, -5, 111], stub, 0);
+  const result = await fetchMangoKpi(TEST_TOKEN, [0, -5, 111], stub, 0);
   assert.deepEqual(result, { calls: 2, trafficSeconds: 120 });
   assert.deepEqual(calls[0]!.params.getAll("GroupId[]"), ["111"]);
 });

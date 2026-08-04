@@ -156,45 +156,63 @@ function extractRow(row: MangoRow): MangoKpi | null {
 /**
  * Parse a Mango `oper-kpi2/result` response body.
  *
- * Sums KPI across all rows in `data` (one per date when querying today).
- * Falls back to `grouped` if `data` is absent.
+ * The GroupId[] report returns ONE ROW PER MEMBER of the operator groups
+ * (873 rows observed live) — so when `memberId` is given, only that
+ * operator's rows are summed. Without member scoping the sum would include
+ * every colleague's calls and traffic (the "8 минут без звонков" bug).
+ *
+ * `data` and `grouped` are candidate collections: each is scoped to the
+ * member FIRST, and the first collection yielding valid KPI rows wins.
+ * (A nonempty `data` containing only OTHER members' rows must not hide
+ * the operator's row in `grouped`.)
+ *
  * Returns null when:
  * - payload is not an object / array
  * - response is the step-1 handshake body ({ key: "…" } only)
+ * - neither collection contains a valid row for the requested member
  * - no row contains both required exact field names
  */
-export function parseMangoOperKpi2Response(payload: unknown): MangoKpi | null {
+export function parseMangoOperKpi2Response(
+  payload: unknown,
+  memberId?: number | null,
+): MangoKpi | null {
   if (!payload || typeof payload !== "object") return null;
 
-  const rows: MangoRow[] = [];
+  // Candidate row collections in preference order: data, then grouped.
+  const candidates: MangoRow[][] = [];
   if (Array.isArray(payload)) {
-    rows.push(...(payload as MangoRow[]));
+    candidates.push(payload as MangoRow[]);
   } else {
     const p = payload as Record<string, unknown>;
     // Step-1 handshake response — result comes from the result endpoint.
     if ("key" in p && !("data" in p) && !("grouped" in p)) return null;
-    if (Array.isArray(p["data"])) rows.push(...(p["data"] as MangoRow[]));
-    if (rows.length === 0 && Array.isArray(p["grouped"])) {
-      rows.push(...(p["grouped"] as MangoRow[]));
+    if (Array.isArray(p["data"])) candidates.push(p["data"] as MangoRow[]);
+    if (Array.isArray(p["grouped"])) candidates.push(p["grouped"] as MangoRow[]);
+  }
+
+  for (const candidate of candidates) {
+    const scoped =
+      memberId != null
+        ? candidate.filter(
+            (r) => r && typeof r === "object" && String(r["member_id"]) === String(memberId),
+          )
+        : candidate;
+
+    let totalCalls = 0;
+    let totalTraffic = 0;
+    let matched = 0;
+    for (const row of scoped) {
+      if (!row || typeof row !== "object") continue;
+      const extracted = extractRow(row as MangoRow);
+      if (!extracted) continue;
+      totalCalls += extracted.calls;
+      totalTraffic += extracted.trafficSeconds;
+      matched++;
     }
+    if (matched > 0) return { calls: totalCalls, trafficSeconds: totalTraffic };
   }
 
-  if (rows.length === 0) return null;
-
-  let totalCalls = 0;
-  let totalTraffic = 0;
-  let matched = 0;
-
-  for (const row of rows) {
-    if (!row || typeof row !== "object") continue;
-    const extracted = extractRow(row as MangoRow);
-    if (!extracted) continue;
-    totalCalls += extracted.calls;
-    totalTraffic += extracted.trafficSeconds;
-    matched++;
-  }
-
-  return matched === 0 ? null : { calls: totalCalls, trafficSeconds: totalTraffic };
+  return null;
 }
 
 /** Alias for backwards-compat. */
@@ -217,6 +235,28 @@ export function extractReportKey(payload: unknown): string | null {
 export function todayMoscow(now = Date.now()): string {
   const d = new Date(now + 3 * 60 * 60 * 1_000);
   return d.toISOString().slice(0, 10);
+}
+
+/**
+ * Decode the member_id embedded in the RS256 jwt_token payload
+ * (`payload.data.member_id`, where `data` is a nested object OR a JSON
+ * string). No signature verification — we only read our own token to scope
+ * the KPI report to the current operator. Returns null for unexpected shapes.
+ */
+export function decodeMangoMemberId(jwtToken: string): number | null {
+  try {
+    const parts = jwtToken.split(".");
+    if (parts.length !== 3) return null;
+    const payload: unknown = JSON.parse(Buffer.from(parts[1]!, "base64url").toString("utf8"));
+    if (!payload || typeof payload !== "object") return null;
+    let data: unknown = (payload as Record<string, unknown>)["data"];
+    if (typeof data === "string") data = JSON.parse(data);
+    if (!data || typeof data !== "object") return null;
+    const id = (data as Record<string, unknown>)["member_id"];
+    return typeof id === "number" && Number.isInteger(id) && id > 0 ? id : null;
+  } catch {
+    return null;
+  }
 }
 
 /**
@@ -351,6 +391,19 @@ export async function fetchMangoKpi(
 
   const handshakeBody = buildFormBody(trimmed, groups);
 
+  // Scope the report to the current operator: the GroupId[] report returns
+  // one row per member of the groups — summing all rows would add colleagues'
+  // calls/traffic (verified live: 873 rows, user's own row was zero while
+  // the unfiltered sum was 8+ minutes of colleagues' outbound calls).
+  // Fail CLOSED when the member id cannot be decoded: an undecodable token
+  // is broken, not a license to aggregate every group member.
+  const memberId = decodeMangoMemberId(trimmed);
+  if (memberId === null) {
+    throw new MangoKpiUnavailableError(
+      "Mango jwt_token does not contain a decodable member_id — re-connect Mango Office",
+    );
+  }
+
   // ── Step 1: POST to oper-kpi2 ─────────────────────────────────────────────
   let hsRes: Response;
   try {
@@ -389,7 +442,7 @@ export async function fetchMangoKpi(
   }
 
   // Optimistic path: a direct/synchronous Mango deployment may include data.
-  const direct = parseMangoOperKpi2Response(hsPayload);
+  const direct = parseMangoOperKpi2Response(hsPayload, memberId);
   if (direct) return direct;
 
   const key = extractReportKey(hsPayload);
@@ -463,7 +516,7 @@ export async function fetchMangoKpi(
       continue;
     }
 
-    const kpi = parseMangoOperKpi2Response(resPayload);
+    const kpi = parseMangoOperKpi2Response(resPayload, memberId);
     if (kpi) return kpi;
     // Auth failure encoded in a 200 body — bail to the refresh/re-login tier
     // instead of polling until the generic "not available" error.
