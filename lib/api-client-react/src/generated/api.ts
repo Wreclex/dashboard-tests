@@ -29,6 +29,14 @@ import type {
   MangoKpi,
   MangoStatus,
   MangoTokenInput,
+  MoizvonkiCredentialsInput,
+  MoizvonkiCsvInput,
+  MoizvonkiHistoryEntry,
+  MoizvonkiMetrics,
+  MoizvonkiSessionInput,
+  MoizvonkiSettings,
+  MoizvonkiSettingsInput,
+  MoizvonkiStatus,
   SheetCounts,
   TelegramChannel,
   TelegramChannelInput,
@@ -956,6 +964,740 @@ export function useGetMangoKpi<TData = Awaited<ReturnType<typeof getMangoKpi>>, 
 
 
 
+
+export const getGetMoizvonkiStatusUrl = () => {
+
+
+
+
+  return `/api/moizvonki/status`
+}
+
+/**
+ * @summary Get Мои Звонки connection status and last collection result
+ */
+export const getMoizvonkiStatus = async ( options?: Parameters<typeof customFetch>[1]): Promise<MoizvonkiStatus> => {
+
+  return customFetch<MoizvonkiStatus>(getGetMoizvonkiStatusUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetMoizvonkiStatusQueryKey = () => {
+    return [
+    `/api/moizvonki/status`
+    ] as const;
+    }
+
+
+export const getGetMoizvonkiStatusQueryOptions = <TData = Awaited<ReturnType<typeof getMoizvonkiStatus>>, TError = ErrorType<unknown>>( options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getMoizvonkiStatus>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetMoizvonkiStatusQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getMoizvonkiStatus>>> = ({ signal }) => getMoizvonkiStatus({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getMoizvonkiStatus>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetMoizvonkiStatusQueryResult = NonNullable<Awaited<ReturnType<typeof getMoizvonkiStatus>>>
+export type GetMoizvonkiStatusQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary Get Мои Звонки connection status and last collection result
+ */
+
+export function useGetMoizvonkiStatus<TData = Awaited<ReturnType<typeof getMoizvonkiStatus>>, TError = ErrorType<unknown>>(
+  options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getMoizvonkiStatus>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetMoizvonkiStatusQueryOptions(options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getPutMoizvonkiSessionUrl = () => {
+
+
+
+
+  return `/api/moizvonki/session`
+}
+
+/**
+ * @summary Store cookies + internal report URL copied from the user's browser (Variant A)
+ */
+export const putMoizvonkiSession = async (moizvonkiSessionInput: MoizvonkiSessionInput, options?: Parameters<typeof customFetch>[1]): Promise<void> => {
+
+  return customFetch<void>(getPutMoizvonkiSessionUrl(),
+  {
+    ...options,
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(moizvonkiSessionInput)
+  }
+);}
+
+
+
+
+
+export const getPutMoizvonkiSessionMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof putMoizvonkiSession>>, TError,{data: BodyType<MoizvonkiSessionInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof putMoizvonkiSession>>, TError,{data: BodyType<MoizvonkiSessionInput>}, TContext> => {
+
+const mutationKey = ['putMoizvonkiSession'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof putMoizvonkiSession>>, {data: BodyType<MoizvonkiSessionInput>}> = (props) => {
+          const {data} = props ?? {};
+
+          return  putMoizvonkiSession(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type PutMoizvonkiSessionMutationResult = NonNullable<Awaited<ReturnType<typeof putMoizvonkiSession>>>
+    export type PutMoizvonkiSessionMutationBody = BodyType<MoizvonkiSessionInput>
+    export type PutMoizvonkiSessionMutationError = ErrorType<void>
+
+    /**
+ * @summary Store cookies + internal report URL copied from the user's browser (Variant A)
+ */
+export const usePutMoizvonkiSession = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof putMoizvonkiSession>>, TError,{data: BodyType<MoizvonkiSessionInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof putMoizvonkiSession>>,
+        TError,
+        {data: BodyType<MoizvonkiSessionInput>},
+        TContext
+      > => {
+      return useMutation(getPutMoizvonkiSessionMutationOptions(options));
+    }
+
+export const getPutMoizvonkiCredentialsUrl = () => {
+
+
+
+
+  return `/api/moizvonki/credentials`
+}
+
+/**
+ * @summary Store Мои Звонки login + password for automatic headless-browser sign-in (Variant B)
+ */
+export const putMoizvonkiCredentials = async (moizvonkiCredentialsInput: MoizvonkiCredentialsInput, options?: Parameters<typeof customFetch>[1]): Promise<void> => {
+
+  return customFetch<void>(getPutMoizvonkiCredentialsUrl(),
+  {
+    ...options,
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(moizvonkiCredentialsInput)
+  }
+);}
+
+
+
+
+
+export const getPutMoizvonkiCredentialsMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof putMoizvonkiCredentials>>, TError,{data: BodyType<MoizvonkiCredentialsInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof putMoizvonkiCredentials>>, TError,{data: BodyType<MoizvonkiCredentialsInput>}, TContext> => {
+
+const mutationKey = ['putMoizvonkiCredentials'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof putMoizvonkiCredentials>>, {data: BodyType<MoizvonkiCredentialsInput>}> = (props) => {
+          const {data} = props ?? {};
+
+          return  putMoizvonkiCredentials(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type PutMoizvonkiCredentialsMutationResult = NonNullable<Awaited<ReturnType<typeof putMoizvonkiCredentials>>>
+    export type PutMoizvonkiCredentialsMutationBody = BodyType<MoizvonkiCredentialsInput>
+    export type PutMoizvonkiCredentialsMutationError = ErrorType<void>
+
+    /**
+ * @summary Store Мои Звонки login + password for automatic headless-browser sign-in (Variant B)
+ */
+export const usePutMoizvonkiCredentials = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof putMoizvonkiCredentials>>, TError,{data: BodyType<MoizvonkiCredentialsInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof putMoizvonkiCredentials>>,
+        TError,
+        {data: BodyType<MoizvonkiCredentialsInput>},
+        TContext
+      > => {
+      return useMutation(getPutMoizvonkiCredentialsMutationOptions(options));
+    }
+
+export const getDeleteMoizvonkiConnectionUrl = () => {
+
+
+
+
+  return `/api/moizvonki/credentials`
+}
+
+/**
+ * @summary Remove all stored Мои Звонки connection data (cookies, URL, login, password)
+ */
+export const deleteMoizvonkiConnection = async ( options?: Parameters<typeof customFetch>[1]): Promise<void> => {
+
+  return customFetch<void>(getDeleteMoizvonkiConnectionUrl(),
+  {
+    ...options,
+    method: 'DELETE'
+
+
+  }
+);}
+
+
+
+
+
+export const getDeleteMoizvonkiConnectionMutationOptions = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof deleteMoizvonkiConnection>>, TError,void, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof deleteMoizvonkiConnection>>, TError,void, TContext> => {
+
+const mutationKey = ['deleteMoizvonkiConnection'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof deleteMoizvonkiConnection>>, void> = () => {
+
+
+          return  deleteMoizvonkiConnection(requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type DeleteMoizvonkiConnectionMutationResult = NonNullable<Awaited<ReturnType<typeof deleteMoizvonkiConnection>>>
+
+    export type DeleteMoizvonkiConnectionMutationError = ErrorType<unknown>
+
+    /**
+ * @summary Remove all stored Мои Звонки connection data (cookies, URL, login, password)
+ */
+export const useDeleteMoizvonkiConnection = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof deleteMoizvonkiConnection>>, TError,void, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof deleteMoizvonkiConnection>>,
+        TError,
+        void,
+        TContext
+      > => {
+      return useMutation(getDeleteMoizvonkiConnectionMutationOptions(options));
+    }
+
+export const getGetMoizvonkiMetricsUrl = () => {
+
+
+
+
+  return `/api/moizvonki/metrics`
+}
+
+/**
+ * @summary Get today's stored call metrics (traffic, calls, density)
+ */
+export const getMoizvonkiMetrics = async ( options?: Parameters<typeof customFetch>[1]): Promise<MoizvonkiMetrics> => {
+
+  return customFetch<MoizvonkiMetrics>(getGetMoizvonkiMetricsUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetMoizvonkiMetricsQueryKey = () => {
+    return [
+    `/api/moizvonki/metrics`
+    ] as const;
+    }
+
+
+export const getGetMoizvonkiMetricsQueryOptions = <TData = Awaited<ReturnType<typeof getMoizvonkiMetrics>>, TError = ErrorType<void>>( options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getMoizvonkiMetrics>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetMoizvonkiMetricsQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getMoizvonkiMetrics>>> = ({ signal }) => getMoizvonkiMetrics({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getMoizvonkiMetrics>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetMoizvonkiMetricsQueryResult = NonNullable<Awaited<ReturnType<typeof getMoizvonkiMetrics>>>
+export type GetMoizvonkiMetricsQueryError = ErrorType<void>
+
+
+/**
+ * @summary Get today's stored call metrics (traffic, calls, density)
+ */
+
+export function useGetMoizvonkiMetrics<TData = Awaited<ReturnType<typeof getMoizvonkiMetrics>>, TError = ErrorType<void>>(
+  options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getMoizvonkiMetrics>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetMoizvonkiMetricsQueryOptions(options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getRefreshMoizvonkiMetricsUrl = () => {
+
+
+
+
+  return `/api/moizvonki/refresh`
+}
+
+/**
+ * @summary Force data collection from ЛК «Мои Звонки» (cookies first, headless browser fallback)
+ */
+export const refreshMoizvonkiMetrics = async ( options?: Parameters<typeof customFetch>[1]): Promise<MoizvonkiMetrics> => {
+
+  return customFetch<MoizvonkiMetrics>(getRefreshMoizvonkiMetricsUrl(),
+  {
+    ...options,
+    method: 'POST'
+
+
+  }
+);}
+
+
+
+
+
+export const getRefreshMoizvonkiMetricsMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof refreshMoizvonkiMetrics>>, TError,void, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof refreshMoizvonkiMetrics>>, TError,void, TContext> => {
+
+const mutationKey = ['refreshMoizvonkiMetrics'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof refreshMoizvonkiMetrics>>, void> = () => {
+
+
+          return  refreshMoizvonkiMetrics(requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type RefreshMoizvonkiMetricsMutationResult = NonNullable<Awaited<ReturnType<typeof refreshMoizvonkiMetrics>>>
+
+    export type RefreshMoizvonkiMetricsMutationError = ErrorType<void>
+
+    /**
+ * @summary Force data collection from ЛК «Мои Звонки» (cookies first, headless browser fallback)
+ */
+export const useRefreshMoizvonkiMetrics = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof refreshMoizvonkiMetrics>>, TError,void, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof refreshMoizvonkiMetrics>>,
+        TError,
+        void,
+        TContext
+      > => {
+      return useMutation(getRefreshMoizvonkiMetricsMutationOptions(options));
+    }
+
+export const getUploadMoizvonkiCsvUrl = () => {
+
+
+
+
+  return `/api/moizvonki/upload-csv`
+}
+
+/**
+ * @summary Manual CSV upload fallback — parses call duration and count from an exported report
+ */
+export const uploadMoizvonkiCsv = async (moizvonkiCsvInput: MoizvonkiCsvInput, options?: Parameters<typeof customFetch>[1]): Promise<MoizvonkiMetrics> => {
+
+  return customFetch<MoizvonkiMetrics>(getUploadMoizvonkiCsvUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(moizvonkiCsvInput)
+  }
+);}
+
+
+
+
+
+export const getUploadMoizvonkiCsvMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof uploadMoizvonkiCsv>>, TError,{data: BodyType<MoizvonkiCsvInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof uploadMoizvonkiCsv>>, TError,{data: BodyType<MoizvonkiCsvInput>}, TContext> => {
+
+const mutationKey = ['uploadMoizvonkiCsv'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof uploadMoizvonkiCsv>>, {data: BodyType<MoizvonkiCsvInput>}> = (props) => {
+          const {data} = props ?? {};
+
+          return  uploadMoizvonkiCsv(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type UploadMoizvonkiCsvMutationResult = NonNullable<Awaited<ReturnType<typeof uploadMoizvonkiCsv>>>
+    export type UploadMoizvonkiCsvMutationBody = BodyType<MoizvonkiCsvInput>
+    export type UploadMoizvonkiCsvMutationError = ErrorType<void>
+
+    /**
+ * @summary Manual CSV upload fallback — parses call duration and count from an exported report
+ */
+export const useUploadMoizvonkiCsv = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof uploadMoizvonkiCsv>>, TError,{data: BodyType<MoizvonkiCsvInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof uploadMoizvonkiCsv>>,
+        TError,
+        {data: BodyType<MoizvonkiCsvInput>},
+        TContext
+      > => {
+      return useMutation(getUploadMoizvonkiCsvMutationOptions(options));
+    }
+
+export const getGetMoizvonkiHistoryUrl = () => {
+
+
+
+
+  return `/api/moizvonki/history`
+}
+
+/**
+ * @summary Daily metrics history for the trend chart (last 30 days)
+ */
+export const getMoizvonkiHistory = async ( options?: Parameters<typeof customFetch>[1]): Promise<MoizvonkiHistoryEntry[]> => {
+
+  return customFetch<MoizvonkiHistoryEntry[]>(getGetMoizvonkiHistoryUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetMoizvonkiHistoryQueryKey = () => {
+    return [
+    `/api/moizvonki/history`
+    ] as const;
+    }
+
+
+export const getGetMoizvonkiHistoryQueryOptions = <TData = Awaited<ReturnType<typeof getMoizvonkiHistory>>, TError = ErrorType<unknown>>( options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getMoizvonkiHistory>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetMoizvonkiHistoryQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getMoizvonkiHistory>>> = ({ signal }) => getMoizvonkiHistory({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getMoizvonkiHistory>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetMoizvonkiHistoryQueryResult = NonNullable<Awaited<ReturnType<typeof getMoizvonkiHistory>>>
+export type GetMoizvonkiHistoryQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary Daily metrics history for the trend chart (last 30 days)
+ */
+
+export function useGetMoizvonkiHistory<TData = Awaited<ReturnType<typeof getMoizvonkiHistory>>, TError = ErrorType<unknown>>(
+  options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getMoizvonkiHistory>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetMoizvonkiHistoryQueryOptions(options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getGetMoizvonkiSettingsUrl = () => {
+
+
+
+
+  return `/api/moizvonki/settings`
+}
+
+/**
+ * @summary Get dashboard settings (shift duration, refresh interval)
+ */
+export const getMoizvonkiSettings = async ( options?: Parameters<typeof customFetch>[1]): Promise<MoizvonkiSettings> => {
+
+  return customFetch<MoizvonkiSettings>(getGetMoizvonkiSettingsUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetMoizvonkiSettingsQueryKey = () => {
+    return [
+    `/api/moizvonki/settings`
+    ] as const;
+    }
+
+
+export const getGetMoizvonkiSettingsQueryOptions = <TData = Awaited<ReturnType<typeof getMoizvonkiSettings>>, TError = ErrorType<unknown>>( options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getMoizvonkiSettings>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetMoizvonkiSettingsQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getMoizvonkiSettings>>> = ({ signal }) => getMoizvonkiSettings({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getMoizvonkiSettings>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetMoizvonkiSettingsQueryResult = NonNullable<Awaited<ReturnType<typeof getMoizvonkiSettings>>>
+export type GetMoizvonkiSettingsQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary Get dashboard settings (shift duration, refresh interval)
+ */
+
+export function useGetMoizvonkiSettings<TData = Awaited<ReturnType<typeof getMoizvonkiSettings>>, TError = ErrorType<unknown>>(
+  options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getMoizvonkiSettings>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetMoizvonkiSettingsQueryOptions(options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getPutMoizvonkiSettingsUrl = () => {
+
+
+
+
+  return `/api/moizvonki/settings`
+}
+
+/**
+ * @summary Save dashboard settings (shift duration, refresh interval)
+ */
+export const putMoizvonkiSettings = async (moizvonkiSettingsInput: MoizvonkiSettingsInput, options?: Parameters<typeof customFetch>[1]): Promise<MoizvonkiSettings> => {
+
+  return customFetch<MoizvonkiSettings>(getPutMoizvonkiSettingsUrl(),
+  {
+    ...options,
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(moizvonkiSettingsInput)
+  }
+);}
+
+
+
+
+
+export const getPutMoizvonkiSettingsMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof putMoizvonkiSettings>>, TError,{data: BodyType<MoizvonkiSettingsInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof putMoizvonkiSettings>>, TError,{data: BodyType<MoizvonkiSettingsInput>}, TContext> => {
+
+const mutationKey = ['putMoizvonkiSettings'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof putMoizvonkiSettings>>, {data: BodyType<MoizvonkiSettingsInput>}> = (props) => {
+          const {data} = props ?? {};
+
+          return  putMoizvonkiSettings(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type PutMoizvonkiSettingsMutationResult = NonNullable<Awaited<ReturnType<typeof putMoizvonkiSettings>>>
+    export type PutMoizvonkiSettingsMutationBody = BodyType<MoizvonkiSettingsInput>
+    export type PutMoizvonkiSettingsMutationError = ErrorType<void>
+
+    /**
+ * @summary Save dashboard settings (shift duration, refresh interval)
+ */
+export const usePutMoizvonkiSettings = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof putMoizvonkiSettings>>, TError,{data: BodyType<MoizvonkiSettingsInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof putMoizvonkiSettings>>,
+        TError,
+        {data: BodyType<MoizvonkiSettingsInput>},
+        TContext
+      > => {
+      return useMutation(getPutMoizvonkiSettingsMutationOptions(options));
+    }
 
 export const getSaveUserReportStateUrl = () => {
 

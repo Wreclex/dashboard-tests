@@ -180,6 +180,200 @@ export const GetMangoKpiResponse = zod.object({
 
 
 /**
+ * @summary Get Мои Звонки connection status and last collection result
+ */
+export const GetMoizvonkiStatusResponse = zod.object({
+  "isConfigured": zod.boolean(),
+  "hasCookies": zod.boolean(),
+  "hasCredentials": zod.boolean(),
+  "lastFetchAt": zod.coerce.date().nullable(),
+  "lastError": zod.string().nullable(),
+  "lastSource": zod.string().nullable().describe('How the last successful data point was collected — \"http\" (cookies), \"browser\" (headless), \"csv\" (manual upload)')
+})
+
+
+/**
+ * @summary Store cookies + internal report URL copied from the user's browser (Variant A)
+ */
+
+
+
+
+export const PutMoizvonkiSessionBody = zod.object({
+  "cookies": zod.string().min(1).describe('Cookie header value copied from DevTools'),
+  "reportUrl": zod.string().min(1).describe('Internal request URL that returns the report data'),
+  "headers": zod.string().optional().describe('Optional extra headers as JSON object string')
+})
+
+export const PutMoizvonkiSessionResponse = zod.void()
+
+
+/**
+ * @summary Store Мои Звонки login + password for automatic headless-browser sign-in (Variant B)
+ */
+
+
+
+
+export const PutMoizvonkiCredentialsBody = zod.object({
+  "login": zod.string().min(1),
+  "password": zod.string().min(1)
+})
+
+export const PutMoizvonkiCredentialsResponse = zod.void()
+
+
+/**
+ * @summary Remove all stored Мои Звонки connection data (cookies, URL, login, password)
+ */
+export const DeleteMoizvonkiConnectionResponse = zod.void()
+
+
+/**
+ * @summary Get today's stored call metrics (traffic, calls, density)
+ */
+export const getMoizvonkiMetricsResponseCallsMin = 0;
+
+export const getMoizvonkiMetricsResponseTrafficSecondsMin = 0;
+
+export const getMoizvonkiMetricsResponseShiftHoursMin = 0;
+
+export const getMoizvonkiMetricsResponseDensityMin = 0;
+
+
+
+export const GetMoizvonkiMetricsResponse = zod.object({
+  "date": zod.string().describe('Day the metrics belong to (DD.MM.YYYY)'),
+  "calls": zod.number().min(getMoizvonkiMetricsResponseCallsMin),
+  "trafficSeconds": zod.number().min(getMoizvonkiMetricsResponseTrafficSecondsMin),
+  "shiftHours": zod.number().min(getMoizvonkiMetricsResponseShiftHoursMin),
+  "density": zod.number().min(getMoizvonkiMetricsResponseDensityMin).describe('calls \/ shiftHours'),
+  "source": zod.string().describe('http | browser | csv'),
+  "updatedAt": zod.coerce.date()
+})
+
+
+/**
+ * @summary Force data collection from ЛК «Мои Звонки» (cookies first, headless browser fallback)
+ */
+export const refreshMoizvonkiMetricsResponseCallsMin = 0;
+
+export const refreshMoizvonkiMetricsResponseTrafficSecondsMin = 0;
+
+export const refreshMoizvonkiMetricsResponseShiftHoursMin = 0;
+
+export const refreshMoizvonkiMetricsResponseDensityMin = 0;
+
+
+
+export const RefreshMoizvonkiMetricsResponse = zod.object({
+  "date": zod.string().describe('Day the metrics belong to (DD.MM.YYYY)'),
+  "calls": zod.number().min(refreshMoizvonkiMetricsResponseCallsMin),
+  "trafficSeconds": zod.number().min(refreshMoizvonkiMetricsResponseTrafficSecondsMin),
+  "shiftHours": zod.number().min(refreshMoizvonkiMetricsResponseShiftHoursMin),
+  "density": zod.number().min(refreshMoizvonkiMetricsResponseDensityMin).describe('calls \/ shiftHours'),
+  "source": zod.string().describe('http | browser | csv'),
+  "updatedAt": zod.coerce.date()
+})
+
+
+/**
+ * @summary Manual CSV upload fallback — parses call duration and count from an exported report
+ */
+
+
+
+export const UploadMoizvonkiCsvBody = zod.object({
+  "csv": zod.string().min(1).describe('Raw CSV file content (any common delimiter)'),
+  "date": zod.string().optional().describe('Optional day override in DD.MM.YYYY; defaults to today')
+})
+
+export const uploadMoizvonkiCsvResponseCallsMin = 0;
+
+export const uploadMoizvonkiCsvResponseTrafficSecondsMin = 0;
+
+export const uploadMoizvonkiCsvResponseShiftHoursMin = 0;
+
+export const uploadMoizvonkiCsvResponseDensityMin = 0;
+
+
+
+export const UploadMoizvonkiCsvResponse = zod.object({
+  "date": zod.string().describe('Day the metrics belong to (DD.MM.YYYY)'),
+  "calls": zod.number().min(uploadMoizvonkiCsvResponseCallsMin),
+  "trafficSeconds": zod.number().min(uploadMoizvonkiCsvResponseTrafficSecondsMin),
+  "shiftHours": zod.number().min(uploadMoizvonkiCsvResponseShiftHoursMin),
+  "density": zod.number().min(uploadMoizvonkiCsvResponseDensityMin).describe('calls \/ shiftHours'),
+  "source": zod.string().describe('http | browser | csv'),
+  "updatedAt": zod.coerce.date()
+})
+
+
+/**
+ * @summary Daily metrics history for the trend chart (last 30 days)
+ */
+export const getMoizvonkiHistoryResponseCallsMin = 0;
+
+export const getMoizvonkiHistoryResponseTrafficSecondsMin = 0;
+
+export const getMoizvonkiHistoryResponseDensityMin = 0;
+
+
+
+export const GetMoizvonkiHistoryResponseItem = zod.object({
+  "date": zod.string(),
+  "calls": zod.number().min(getMoizvonkiHistoryResponseCallsMin),
+  "trafficSeconds": zod.number().min(getMoizvonkiHistoryResponseTrafficSecondsMin),
+  "density": zod.number().min(getMoizvonkiHistoryResponseDensityMin)
+})
+export const GetMoizvonkiHistoryResponse = zod.array(GetMoizvonkiHistoryResponseItem)
+
+
+/**
+ * @summary Get dashboard settings (shift duration, refresh interval)
+ */
+export const getMoizvonkiSettingsResponseShiftHoursMin = 0.5;
+export const getMoizvonkiSettingsResponseShiftHoursMax = 24;
+
+export const getMoizvonkiSettingsResponseRefreshIntervalMinutesMax = 240;
+
+
+
+export const GetMoizvonkiSettingsResponse = zod.object({
+  "shiftHours": zod.number().min(getMoizvonkiSettingsResponseShiftHoursMin).max(getMoizvonkiSettingsResponseShiftHoursMax),
+  "refreshIntervalMinutes": zod.number().min(1).max(getMoizvonkiSettingsResponseRefreshIntervalMinutesMax)
+})
+
+
+/**
+ * @summary Save dashboard settings (shift duration, refresh interval)
+ */
+export const putMoizvonkiSettingsBodyShiftHoursMin = 0.5;
+export const putMoizvonkiSettingsBodyShiftHoursMax = 24;
+
+export const putMoizvonkiSettingsBodyRefreshIntervalMinutesMax = 240;
+
+
+
+export const PutMoizvonkiSettingsBody = zod.object({
+  "shiftHours": zod.number().min(putMoizvonkiSettingsBodyShiftHoursMin).max(putMoizvonkiSettingsBodyShiftHoursMax).optional(),
+  "refreshIntervalMinutes": zod.number().min(1).max(putMoizvonkiSettingsBodyRefreshIntervalMinutesMax).optional()
+})
+
+export const putMoizvonkiSettingsResponseShiftHoursMin = 0.5;
+export const putMoizvonkiSettingsResponseShiftHoursMax = 24;
+
+export const putMoizvonkiSettingsResponseRefreshIntervalMinutesMax = 240;
+
+
+
+export const PutMoizvonkiSettingsResponse = zod.object({
+  "shiftHours": zod.number().min(putMoizvonkiSettingsResponseShiftHoursMin).max(putMoizvonkiSettingsResponseShiftHoursMax),
+  "refreshIntervalMinutes": zod.number().min(1).max(putMoizvonkiSettingsResponseRefreshIntervalMinutesMax)
+})
+
+
+/**
  * @summary Save the authenticated user's current report state for scheduled delivery
  */
 export const saveUserReportStateBodyStatePzmMin = 0;

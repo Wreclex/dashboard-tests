@@ -36,6 +36,13 @@
       "when": 1785791600000,
       "tag": "0004_mango_credentials_operator_groups",
       "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1785826000000,
+      "tag": "0005_moizvonki",
+      "breakpoints": true
     }
   ]
 }

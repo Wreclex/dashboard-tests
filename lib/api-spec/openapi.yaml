@@ -18,6 +18,8 @@ tags:
     description: Scheduled Telegram report delivery
   - name: mango
     description: Mango Office KPI synchronization
+  - name: moizvonki
+    description: Мои Звонки (moizvonki.ru) call dashboard
 paths:
   /healthz:
     get:
@@ -247,6 +249,162 @@ paths:
           description: Mango token is not configured
         "502":
           description: Mango Office could not provide KPI data
+
+  /moizvonki/status:
+    get:
+      operationId: getMoizvonkiStatus
+      tags: [moizvonki]
+      summary: Get Мои Звонки connection status and last collection result
+      responses:
+        "200":
+          description: Connection status
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MoizvonkiStatus"
+
+  /moizvonki/session:
+    put:
+      operationId: putMoizvonkiSession
+      tags: [moizvonki]
+      summary: Store cookies + internal report URL copied from the user's browser (Variant A)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/MoizvonkiSessionInput"
+      responses:
+        "204":
+          description: Session stored
+        "400":
+          description: Missing cookies or report URL
+
+  /moizvonki/credentials:
+    put:
+      operationId: putMoizvonkiCredentials
+      tags: [moizvonki]
+      summary: Store Мои Звонки login + password for automatic headless-browser sign-in (Variant B)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/MoizvonkiCredentialsInput"
+      responses:
+        "204":
+          description: Credentials stored
+        "400":
+          description: Missing login or password
+    delete:
+      operationId: deleteMoizvonkiConnection
+      tags: [moizvonki]
+      summary: Remove all stored Мои Звонки connection data (cookies, URL, login, password)
+      responses:
+        "204":
+          description: Connection data removed
+
+  /moizvonki/metrics:
+    get:
+      operationId: getMoizvonkiMetrics
+      tags: [moizvonki]
+      summary: Get today's stored call metrics (traffic, calls, density)
+      responses:
+        "200":
+          description: Today's metrics
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MoizvonkiMetrics"
+        "404":
+          description: No metrics collected yet today
+
+  /moizvonki/refresh:
+    post:
+      operationId: refreshMoizvonkiMetrics
+      tags: [moizvonki]
+      summary: Force data collection from ЛК «Мои Звонки» (cookies first, headless browser fallback)
+      responses:
+        "200":
+          description: Freshly collected metrics
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MoizvonkiMetrics"
+        "400":
+          description: No connection configured (neither cookies nor login/password)
+        "401":
+          description: Мои Звонки rejected the stored session — re-configure
+        "502":
+          description: Collection failed (network, changed markup, timeout)
+
+  /moizvonki/upload-csv:
+    post:
+      operationId: uploadMoizvonkiCsv
+      tags: [moizvonki]
+      summary: Manual CSV upload fallback — parses call duration and count from an exported report
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/MoizvonkiCsvInput"
+      responses:
+        "200":
+          description: Parsed metrics, stored for the given date
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MoizvonkiMetrics"
+        "400":
+          description: CSV could not be parsed (no duration/calls columns found)
+
+  /moizvonki/history:
+    get:
+      operationId: getMoizvonkiHistory
+      tags: [moizvonki]
+      summary: Daily metrics history for the trend chart (last 30 days)
+      responses:
+        "200":
+          description: History entries ordered by date ascending
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/MoizvonkiHistoryEntry"
+
+  /moizvonki/settings:
+    get:
+      operationId: getMoizvonkiSettings
+      tags: [moizvonki]
+      summary: Get dashboard settings (shift duration, refresh interval)
+      responses:
+        "200":
+          description: Current settings
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MoizvonkiSettings"
+    put:
+      operationId: putMoizvonkiSettings
+      tags: [moizvonki]
+      summary: Save dashboard settings (shift duration, refresh interval)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/MoizvonkiSettingsInput"
+      responses:
+        "200":
+          description: Settings saved
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MoizvonkiSettings"
+        "400":
+          description: Invalid values
 
   /state:
     post:
@@ -550,3 +708,129 @@ components:
           type: string
           format: date-time
       required: [id, channelId, intervalMinutes, reportType, isActive, lastSentAt, createdAt, updatedAt]
+
+    MoizvonkiStatus:
+      type: object
+      properties:
+        isConfigured:
+          type: boolean
+        hasCookies:
+          type: boolean
+        hasCredentials:
+          type: boolean
+        lastFetchAt:
+          type: ["string", "null"]
+          format: date-time
+        lastError:
+          type: ["string", "null"]
+        lastSource:
+          type: ["string", "null"]
+          description: How the last successful data point was collected — "http" (cookies), "browser" (headless), "csv" (manual upload)
+      required: [isConfigured, hasCookies, hasCredentials, lastFetchAt, lastError, lastSource]
+
+    MoizvonkiSessionInput:
+      type: object
+      properties:
+        cookies:
+          type: string
+          minLength: 1
+          description: Cookie header value copied from DevTools
+        reportUrl:
+          type: string
+          minLength: 1
+          description: Internal request URL that returns the report data
+        headers:
+          type: string
+          description: Optional extra headers as JSON object string
+      required: [cookies, reportUrl]
+
+    MoizvonkiCredentialsInput:
+      type: object
+      properties:
+        login:
+          type: string
+          minLength: 1
+        password:
+          type: string
+          minLength: 1
+      required: [login, password]
+
+    MoizvonkiMetrics:
+      type: object
+      properties:
+        date:
+          type: string
+          description: Day the metrics belong to (DD.MM.YYYY)
+        calls:
+          type: number
+          minimum: 0
+        trafficSeconds:
+          type: number
+          minimum: 0
+        shiftHours:
+          type: number
+          minimum: 0
+        density:
+          type: number
+          minimum: 0
+          description: calls / shiftHours
+        source:
+          type: string
+          description: "http | browser | csv"
+        updatedAt:
+          type: string
+          format: date-time
+      required: [date, calls, trafficSeconds, shiftHours, density, source, updatedAt]
+
+    MoizvonkiCsvInput:
+      type: object
+      properties:
+        csv:
+          type: string
+          minLength: 1
+          description: Raw CSV file content (any common delimiter)
+        date:
+          type: string
+          description: Optional day override in DD.MM.YYYY; defaults to today
+      required: [csv]
+
+    MoizvonkiHistoryEntry:
+      type: object
+      properties:
+        date:
+          type: string
+        calls:
+          type: number
+          minimum: 0
+        trafficSeconds:
+          type: number
+          minimum: 0
+        density:
+          type: number
+          minimum: 0
+      required: [date, calls, trafficSeconds, density]
+
+    MoizvonkiSettings:
+      type: object
+      properties:
+        shiftHours:
+          type: number
+          minimum: 0.5
+          maximum: 24
+        refreshIntervalMinutes:
+          type: number
+          minimum: 1
+          maximum: 240
+      required: [shiftHours, refreshIntervalMinutes]
+
+    MoizvonkiSettingsInput:
+      type: object
+      properties:
+        shiftHours:
+          type: number
+          minimum: 0.5
+          maximum: 24
+        refreshIntervalMinutes:
+          type: number
+          minimum: 1
+          maximum: 240

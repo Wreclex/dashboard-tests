@@ -168,6 +168,108 @@ export interface AutoReportSchedule {
   updatedAt: string;
 }
 
+export interface MoizvonkiStatus {
+  isConfigured: boolean;
+  hasCookies: boolean;
+  hasCredentials: boolean;
+  /** @nullable */
+  lastFetchAt: string | null;
+  /** @nullable */
+  lastError: string | null;
+  /**
+     * How the last successful data point was collected — "http" (cookies), "browser" (headless), "csv" (manual upload)
+     * @nullable
+     */
+  lastSource: string | null;
+}
+
+export interface MoizvonkiSessionInput {
+  /**
+     * Cookie header value copied from DevTools
+     * @minLength 1
+     */
+  cookies: string;
+  /**
+     * Internal request URL that returns the report data
+     * @minLength 1
+     */
+  reportUrl: string;
+  /** Optional extra headers as JSON object string */
+  headers?: string;
+}
+
+export interface MoizvonkiCredentialsInput {
+  /** @minLength 1 */
+  login: string;
+  /** @minLength 1 */
+  password: string;
+}
+
+export interface MoizvonkiMetrics {
+  /** Day the metrics belong to (DD.MM.YYYY) */
+  date: string;
+  /** @minimum 0 */
+  calls: number;
+  /** @minimum 0 */
+  trafficSeconds: number;
+  /** @minimum 0 */
+  shiftHours: number;
+  /**
+     * calls / shiftHours
+     * @minimum 0
+     */
+  density: number;
+  /** http | browser | csv */
+  source: string;
+  updatedAt: string;
+}
+
+export interface MoizvonkiCsvInput {
+  /**
+     * Raw CSV file content (any common delimiter)
+     * @minLength 1
+     */
+  csv: string;
+  /** Optional day override in DD.MM.YYYY; defaults to today */
+  date?: string;
+}
+
+export interface MoizvonkiHistoryEntry {
+  date: string;
+  /** @minimum 0 */
+  calls: number;
+  /** @minimum 0 */
+  trafficSeconds: number;
+  /** @minimum 0 */
+  density: number;
+}
+
+export interface MoizvonkiSettings {
+  /**
+     * @minimum 0.5
+     * @maximum 24
+     */
+  shiftHours: number;
+  /**
+     * @minimum 1
+     * @maximum 240
+     */
+  refreshIntervalMinutes: number;
+}
+
+export interface MoizvonkiSettingsInput {
+  /**
+     * @minimum 0.5
+     * @maximum 24
+     */
+  shiftHours?: number;
+  /**
+     * @minimum 1
+     * @maximum 240
+     */
+  refreshIntervalMinutes?: number;
+}
+
 export type GetSheetCountsParams = {
 /**
  * Manager name to filter by (column K). Normalized match — spaces and case ignored.

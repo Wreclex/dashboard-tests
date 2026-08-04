@@ -1,0 +1,28 @@
+kind = "web"
+previewPath = "/moizvonki/"
+title = "Мои Звонки — Дашборд"
+description = "Дашборд для менеджера по продажам, который автоматически собирает данные из личного кабинета «Мои Звонки» (ukmain.moizvonki.ru) и показывает три метрики: трафик (суммарное время звонков), количество попыток дозвона и плотность работы (звонки на длительность смены). Поддерживает сбор по cookies/внутреннему запросу, автоматический вход через headless-браузер, ручную загрузку CSV и историю по дням с графиком."
+version = "1.0.0"
+id = "artifacts/moizvonki-dashboard"
+router = "path"
+
+[[services]]
+name = "web"
+paths = [ "/moizvonki/" ]
+localPort = 25161
+
+[services.development]
+run = "pnpm --filter @workspace/moizvonki-dashboard run dev"
+
+[services.production]
+build = [ "pnpm", "--filter", "@workspace/moizvonki-dashboard", "run", "build" ]
+serve = "static"
+publicDir = "artifacts/moizvonki-dashboard/dist/public"
+
+[[services.production.rewrites]]
+from = "/*"
+to = "/index.html"
+
+[services.env]
+PORT = "25161"
+BASE_PATH = "/moizvonki/"
