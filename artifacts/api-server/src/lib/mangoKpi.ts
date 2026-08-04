@@ -93,6 +93,21 @@ type MangoFetchMode =
   | { kind: "single"; memberId?: number | null }
   | { kind: "team" };
 
+export type MangoFetchOptions = {
+  /** Wall-clock budget for the whole operation. */
+  totalTimeoutMs?: number;
+  /** Owner of the credential row — new sessions are persisted back to it. */
+  userId?: string;
+  /**
+   * Never run the ~60 s headless login: throw MangoTokenExpiredError instead.
+   * Used by request paths that must answer quickly and delegate re-login to a
+   * background refresh.
+   */
+  skipRelogin?: boolean;
+  /** Ignore the cached token and log in from scratch. */
+  forceRelogin?: boolean;
+};
+
 type MangoFetchResult<M extends MangoFetchMode> = M extends { kind: "team" }
   ? MangoMemberKpi[]
   : MangoKpi;
@@ -108,7 +123,7 @@ type MangoFetchResult<M extends MangoFetchMode> = M extends { kind: "team" }
 async function fetchWithMangoSession<M extends MangoFetchMode>(
   credential: MangoStoredCredential,
   mode: M,
-  opts?: { totalTimeoutMs?: number; userId?: string },
+  opts?: MangoFetchOptions,
 ): Promise<MangoFetchResult<M>> {
   const started = Date.now();
   const remaining = () =>
@@ -129,12 +144,18 @@ async function fetchWithMangoSession<M extends MangoFetchMode>(
   // ── 1. Cached RS256 jwt_token + operator groups ───────────────────────────
   const cachedJwt = decryptPlain(credential.authToken);
   const cachedGroups = parseOperatorGroups(credential.operatorGroups);
-  if (cachedJwt && cachedGroups.length > 0 && isAscii(cachedJwt)) {
+  if (!opts?.forceRelogin && cachedJwt && cachedGroups.length > 0 && isAscii(cachedJwt)) {
     try {
       return await run(cachedJwt, cachedGroups);
     } catch (err) {
       if (!(err instanceof MangoTokenExpiredError)) throw err;
+      // The caller drives re-login itself (it needs a much larger time budget
+      // than a data read): report the expiry instead of blocking here.
+      if (opts?.skipRelogin) throw err;
     }
+  } else if (opts?.skipRelogin && !opts?.forceRelogin) {
+    // No usable cached session and the caller opted out of the slow tier.
+    throw new MangoTokenExpiredError("Нет сохранённой сессии Mango");
   }
 
   // ── 2. Headless-browser re-login ──────────────────────────────────────────
@@ -179,7 +200,7 @@ async function fetchWithMangoSession<M extends MangoFetchMode>(
  */
 export async function getMangoKpi(
   credential: MangoStoredCredential,
-  opts?: { totalTimeoutMs?: number; userId?: string; memberId?: number | null },
+  opts?: MangoFetchOptions & { memberId?: number | null },
 ): Promise<MangoKpi> {
   return fetchWithMangoSession(credential, { kind: "single", memberId: opts?.memberId }, opts);
 }
@@ -191,7 +212,7 @@ export async function getMangoKpi(
  */
 export async function getMangoTeamKpi(
   credential: MangoStoredCredential,
-  opts?: { totalTimeoutMs?: number; userId?: string },
+  opts?: MangoFetchOptions,
 ): Promise<MangoMemberKpi[]> {
   return fetchWithMangoSession(credential, { kind: "team" }, opts);
 }

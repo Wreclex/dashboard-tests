@@ -3,12 +3,21 @@ import { and, desc, eq, ne } from "drizzle-orm";
 import { db, mangoCredentials, moizvonkiConnections, moizvonkiMetrics, moizvonkiSettings, teamMembers } from "@workspace/db";
 import { encryptToken } from "../lib/encrypt";
 import {
-  getMangoKpi,
-  getMangoTeamKpi,
   mangoBrowserLogin,
   MangoAuthError,
   MangoKpiUnavailableError,
 } from "../lib/mangoKpi";
+import {
+  clearMangoSnapshots,
+  ensureMangoSnapshots,
+  isMangoRefreshRunning,
+  readMemberSnapshot,
+  readSessionInfo,
+  readTeamSnapshot,
+  refreshMangoSnapshots,
+  type MangoSessionInfo,
+  type MangoSessionState,
+} from "../lib/mangoSession";
 import {
   MoizvonkiAuthError,
   MoizvonkiCsvError,
@@ -71,6 +80,10 @@ function toMetricsPayload(
 // report by GroupId[] already returns one row per operator, so everyone's
 // stats come from a single login. Admin/manager configure it; employees never
 // see Mango credentials.
+//
+// Requests never talk to Mango directly — see lib/mangoSession.ts. They read
+// the stored snapshot and let a background job do the slow work, so no route
+// here can hang the dashboard.
 
 async function getStoredMangoCredential() {
   const [row] = await db
@@ -95,10 +108,29 @@ function handleMangoError(req: any, res: any, err: unknown, logMessage: string):
   res.status(500).json({ error: "Internal server error" });
 }
 
+/** UI-facing state: an in-progress refresh outranks the last recorded outcome. */
+function currentState(info: MangoSessionInfo): MangoSessionState {
+  return isMangoRefreshRunning() ? "refreshing" : info.state;
+}
+
+async function statusPayload() {
+  const credential = await getStoredMangoCredential();
+  if (!credential) {
+    return { isConnected: false, state: "not_configured" as const, message: null, updatedAt: null };
+  }
+  const info = readSessionInfo(credential);
+  const snapshot = await readTeamSnapshot();
+  return {
+    isConnected: true,
+    state: currentState(info),
+    message: info.message,
+    updatedAt: snapshot?.fetchedAt.toISOString() ?? null,
+  };
+}
+
 router.get("/mango/status", async (req, res): Promise<void> => {
   try {
-    const credential = await getStoredMangoCredential();
-    res.json({ isConnected: Boolean(credential) });
+    res.json(await statusPayload());
   } catch (err) {
     req.log.error({ err }, "Failed to get Mango status for combined dashboard");
     res.status(500).json({ error: "Internal server error" });
@@ -107,21 +139,38 @@ router.get("/mango/status", async (req, res): Promise<void> => {
 
 router.get("/mango/kpi", async (req: any, res): Promise<void> => {
   try {
-    const member = await ensureTeamMember(req.userId);
-    if (!member.mangoMemberId) {
-      res.status(409).json({ error: "operator_not_claimed", message: "Выберите себя в списке операторов Mango" });
-      return;
-    }
+    const member = req.teamMember;
     const credential = await getStoredMangoCredential();
     if (!credential) {
-      res.status(404).json({ error: "credentials_not_configured" });
+      res.json({ state: "not_configured", calls: 0, trafficSeconds: 0, hasData: false, updatedAt: null, message: null });
       return;
     }
-    const kpi = await getMangoKpi(credential, {
-      userId: credential.userId,
-      memberId: member.mangoMemberId,
+    if (!member.mangoMemberId) {
+      res.json({
+        state: "operator_not_claimed",
+        calls: 0,
+        trafficSeconds: 0,
+        hasData: false,
+        updatedAt: null,
+        message: "Выберите себя в списке операторов Mango",
+      });
+      return;
+    }
+
+    await ensureMangoSnapshots(credential);
+
+    // Re-read: the refresh we just awaited may have changed the session state.
+    const latest = (await getStoredMangoCredential()) ?? credential;
+    const info = readSessionInfo(latest);
+    const snapshot = await readMemberSnapshot(member.mangoMemberId);
+    res.json({
+      state: currentState(info),
+      calls: snapshot?.data.calls ?? 0,
+      trafficSeconds: snapshot?.data.trafficSeconds ?? 0,
+      hasData: Boolean(snapshot),
+      updatedAt: snapshot?.fetchedAt.toISOString() ?? null,
+      message: info.message,
     });
-    res.json(kpi);
   } catch (err) {
     handleMangoError(req, res, err, "Failed to fetch Mango KPI for combined dashboard");
   }
@@ -134,10 +183,19 @@ router.get("/mango/operators", async (req: any, res): Promise<void> => {
       res.status(404).json({ error: "credentials_not_configured" });
       return;
     }
-    const members = await getMangoTeamKpi(credential, { userId: credential.userId });
+    await ensureMangoSnapshots(credential);
+    const snapshot = await readTeamSnapshot();
+    if (!snapshot) {
+      const info = readSessionInfo((await getStoredMangoCredential()) ?? credential);
+      res.status(502).json({
+        error: "mango_kpi_unavailable",
+        message: info.message ?? "Список операторов Mango пока недоступен, попробуйте позже",
+      });
+      return;
+    }
     // The employee onboarding directory deliberately contains identifiers and
     // names only — team KPI is confidential and available solely to managers.
-    res.json(members.map(({ memberId, memberName }) => ({ memberId, memberName })));
+    res.json(snapshot.data.members.map(({ memberId, memberName }) => ({ memberId, memberName })));
   } catch (err) {
     handleMangoError(req, res, err, "Failed to fetch Mango operator list");
   }
@@ -147,17 +205,51 @@ router.get("/team/kpi", requireRole("manager", "admin"), async (req: any, res): 
   try {
     const credential = await getStoredMangoCredential();
     if (!credential) {
-      res.status(404).json({ error: "credentials_not_configured" });
+      res.json({
+        state: "not_configured",
+        members: [],
+        totalCalls: 0,
+        totalTrafficSeconds: 0,
+        hasData: false,
+        updatedAt: null,
+        message: null,
+      });
       return;
     }
-    const members = await getMangoTeamKpi(credential, { userId: credential.userId });
+    await ensureMangoSnapshots(credential);
+    const latest = (await getStoredMangoCredential()) ?? credential;
+    const info = readSessionInfo(latest);
+    const snapshot = await readTeamSnapshot();
     res.json({
-      members,
-      totalCalls: members.reduce((s, m) => s + m.calls, 0),
-      totalTrafficSeconds: members.reduce((s, m) => s + m.trafficSeconds, 0),
+      state: currentState(info),
+      members: snapshot?.data.members ?? [],
+      totalCalls: snapshot?.data.totalCalls ?? 0,
+      totalTrafficSeconds: snapshot?.data.totalTrafficSeconds ?? 0,
+      hasData: Boolean(snapshot),
+      updatedAt: snapshot?.fetchedAt.toISOString() ?? null,
+      message: info.message,
     });
   } catch (err) {
     handleMangoError(req, res, err, "Failed to fetch Mango team KPI");
+  }
+});
+
+/**
+ * Re-establish the shared Mango session with the stored login and password.
+ * This is the "войти заново" action: it bypasses the failure cooldown and
+ * reports the outcome without ever blocking longer than the snapshot grace.
+ */
+router.post("/mango/reconnect", requireRole("manager", "admin"), async (req: any, res): Promise<void> => {
+  try {
+    const credential = await getStoredMangoCredential();
+    if (!credential) {
+      res.status(404).json({ error: "credentials_not_configured" });
+      return;
+    }
+    await ensureMangoSnapshots(credential, { force: true });
+    res.json(await statusPayload());
+  } catch (err) {
+    handleMangoError(req, res, err, "Failed to reconnect the shared Mango session");
   }
 });
 
@@ -170,16 +262,23 @@ router.post("/me/claim-operator", async (req: any, res): Promise<void> => {
     return;
   }
   try {
-    await ensureTeamMember(req.userId);
     const credential = await getStoredMangoCredential();
     if (!credential) {
       res.status(404).json({ error: "credentials_not_configured" });
       return;
     }
     // Never trust client-provided names or ids: verify the operator against
-    // the current shared Mango report and store Mango's canonical name.
-    const operators = await getMangoTeamKpi(credential, { userId: credential.userId });
-    const operator = operators.find((entry) => entry.memberId === id);
+    // the shared Mango report and store Mango's canonical name.
+    await ensureMangoSnapshots(credential);
+    const snapshot = await readTeamSnapshot();
+    if (!snapshot) {
+      res.status(502).json({
+        error: "mango_kpi_unavailable",
+        message: "Список операторов Mango пока недоступен, попробуйте позже",
+      });
+      return;
+    }
+    const operator = snapshot.data.members.find((entry) => entry.memberId === id);
     if (!operator) {
       res.status(400).json({ error: "unknown_mango_operator", message: "Оператор не найден в текущей группе Mango" });
       return;
@@ -198,7 +297,7 @@ router.post("/me/claim-operator", async (req: any, res): Promise<void> => {
       .set({ mangoMemberId: id, mangoMemberName: operator.memberName })
       .where(eq(teamMembers.clerkUserId, req.userId))
       .returning();
-    res.json(serializeTeamMember(row));
+    res.json(serializeTeamMember(row!));
   } catch (err) {
     if ((err as { code?: string }).code === "23505") {
       res.status(409).json({ error: "operator_already_claimed", message: "Этот оператор уже привязан к другому пользователю" });
@@ -222,10 +321,13 @@ router.put("/mango/credentials", requireRole("manager", "admin"), async (req: an
     // Keep updating the existing shared row (whoever created it); only the
     // first configuration creates a new row under the configuring user.
     const userId = existing?.userId ?? req.userId;
-    const persist = async (session?: Awaited<ReturnType<typeof mangoBrowserLogin>>) => {
+    const persist = async (session?: Awaited<ReturnType<typeof mangoBrowserLogin>>, failure?: string | null) => {
       const base = {
         email: encryptToken(email.trim()),
         password: encryptToken(password),
+        sessionState: session ? "ok" : "reauth_required",
+        sessionError: session ? null : (failure ?? null),
+        sessionCheckedAt: new Date(),
         updatedAt: new Date(),
       };
       const withTokens = session
@@ -240,9 +342,14 @@ router.put("/mango/credentials", requireRole("manager", "admin"), async (req: an
     try {
       const session = await mangoBrowserLogin(email.trim(), password);
       await persist(session);
+      // Warm the snapshots with the fresh session so the dashboard already has
+      // numbers by the time the user closes the dialog.
+      const stored = await getStoredMangoCredential();
+      if (stored) refreshMangoSnapshots(stored);
       res.status(204).send();
     } catch (err) {
-      await persist().catch((e) => req.log.error({ err: e }, "Failed to persist Mango credentials"));
+      const failure = err instanceof Error ? err.message : null;
+      await persist(undefined, failure).catch((e) => req.log.error({ err: e }, "Failed to persist Mango credentials"));
       if (err instanceof MangoAuthError) {
         res.status(401).json({ error: "auth_failed", message: err.message });
         return;
@@ -265,6 +372,7 @@ router.delete("/mango/credentials", requireRole("manager", "admin"), async (req,
     if (existing) {
       await db.delete(mangoCredentials).where(eq(mangoCredentials.userId, existing.userId));
     }
+    await clearMangoSnapshots();
     res.status(204).send();
   } catch (err) {
     req.log.error({ err }, "Failed to delete Mango credentials for combined dashboard");

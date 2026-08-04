@@ -144,14 +144,22 @@ export default function MangoModal({ open, onClose, isSignedIn }: Props) {
   const handleCheck = async () => {
     setError('');
     const result = await kpiQuery.refetch();
-    const code = errorCodeOf(result.error);
-    if (code === 'auth_failed') {
-      setAuthFailed(true);
-      setError('Логин или пароль перестали подходить — введите заново');
-    } else if (code === 'credentials_not_configured') {
-      setAuthFailed(true);
-    } else if (result.error) {
+    if (result.error) {
       setError('Ошибка при проверке данных');
+      return;
+    }
+    // The KPI endpoint always answers with an explicit state instead of
+    // blocking on Mango, so read the state rather than an HTTP error code.
+    const kpi = result.data;
+    if (kpi?.state === 'not_configured') {
+      setAuthFailed(true);
+    } else if (kpi?.state === 'reauth_required') {
+      setAuthFailed(true);
+      setError(kpi.message ?? 'Логин или пароль перестали подходить — введите заново');
+    } else if (kpi?.state === 'unavailable') {
+      setError('Mango Office сейчас не отвечает — попробуйте позже');
+    } else if (!kpi?.hasData) {
+      setError('Данные ещё собираются из Mango — повторите через несколько секунд');
     }
   };
 
@@ -301,7 +309,7 @@ export default function MangoModal({ open, onClose, isSignedIn }: Props) {
                 </button>
               </div>
 
-              {kpi && (
+              {kpi?.hasData && (
                 <div className="grid grid-cols-2 gap-3">
                   <div className="flex flex-col gap-1 p-3 rounded-2xl bg-white/[0.04] border border-white/[0.06]">
                     <span className="text-[10px] font-bold uppercase tracking-[0.16em] text-muted-foreground">Звонки</span>
@@ -311,6 +319,13 @@ export default function MangoModal({ open, onClose, isSignedIn }: Props) {
                     <span className="text-[10px] font-bold uppercase tracking-[0.16em] text-muted-foreground">Трафик</span>
                     <span className="text-xl font-bold text-foreground">{formatTraffic(kpi.trafficSeconds)}</span>
                   </div>
+                  {kpi.updatedAt && (
+                    <p className="col-span-2 text-[10px] text-muted-foreground text-center">
+                      Обновлено:{' '}
+                      {new Date(kpi.updatedAt).toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' })}
+                      {kpi.state === 'refreshing' ? ' · обновляем' : ''}
+                    </p>
+                  )}
                 </div>
               )}
 

@@ -21,6 +21,16 @@ export const mangoCredentials = pgTable(
     refreshToken: text("refresh_token"),
     /** JSON-encoded Mango operator group IDs required by KPI reports (GroupId[]); null until first login. */
     operatorGroups: text("operator_groups"),
+    /**
+     * Outcome of the last Mango session attempt, so every instance (and the UI)
+     * can tell "we are logging in again" apart from "Mango rejected us".
+     * One of: "ok" | "refreshing" | "reauth_required" | "unavailable".
+     */
+    sessionState: text("session_state"),
+    /** Human-readable reason behind a non-ok sessionState. */
+    sessionError: text("session_error"),
+    /** When sessionState was last written. */
+    sessionCheckedAt: timestamp("session_checked_at", { withTimezone: true }),
     updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
   },
   (table) => [uniqueIndex("mango_credentials_user_id_idx").on(table.userId)],

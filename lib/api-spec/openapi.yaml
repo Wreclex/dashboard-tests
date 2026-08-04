@@ -311,20 +311,21 @@ paths:
     get:
       operationId: getMangoKpi
       tags: [mango]
-      summary: Fetch today's Mango Office calls and traffic duration
+      summary: Today's Mango Office calls and traffic duration for this user's own connection
+      description: >-
+        Answers from the stored snapshot and refreshes Mango in the background,
+        so the request never waits on the (slow) Mango round trip. `state`
+        describes the connection; `hasData` tells whether the numbers are real
+        or placeholders.
       responses:
         "200":
-          description: Today's KPI values
+          description: Snapshot of today's KPI plus connection state
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/MangoKpi"
+                $ref: "#/components/schemas/MangoKpiSnapshot"
         "401":
-          description: Unauthorized or expired Mango token
-        "404":
-          description: Mango token is not configured
-        "502":
-          description: Mango Office could not provide KPI data
+          description: Unauthorized
 
   /moizvonki/mango/status:
     get:
@@ -346,21 +347,21 @@ paths:
     get:
       operationId: getMoizvonkiMangoKpi
       tags: [moizvonki]
-      summary: Fetch today's Mango Office calls and traffic for the current user's claimed operator
-      description: Scoped to the Mango operator the user claimed at onboarding (member_id).
+      summary: Today's Mango calls and traffic for the current user's claimed operator
+      description: >-
+        Answers from the stored snapshot and refreshes Mango in the background,
+        so the request never waits on the (slow) Mango round trip. `state`
+        describes the shared connection; `hasData` tells whether the numbers
+        are real or placeholders.
       responses:
         "200":
-          description: Today's Mango KPI values
+          description: Snapshot of today's Mango KPI plus connection state
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/MangoKpi"
+                $ref: "#/components/schemas/MangoKpiSnapshot"
         "401":
-          description: Unauthorized or Mango session expired — re-enter Mango credentials
-        "404":
-          description: Mango credentials are not configured
-        "409":
-          description: The user has not claimed a Mango operator yet (operator_not_claimed)
+          description: Unauthorized
         "502":
           description: Mango Office could not provide KPI data
 
@@ -417,19 +418,38 @@ paths:
       summary: Team-wide Mango KPI for today — one row per operator plus totals (manager/admin only)
       responses:
         "200":
-          description: Per-operator KPI and team totals
+          description: Per-operator KPI and team totals from the stored snapshot
           content:
             application/json:
               schema:
                 $ref: "#/components/schemas/MangoTeamKpi"
         "401":
-          description: Unauthorized or Mango session expired
+          description: Unauthorized
+        "403":
+          description: Manager or admin role required
+
+  /moizvonki/mango/reconnect:
+    post:
+      operationId: reconnectMoizvonkiMango
+      tags: [moizvonki]
+      summary: Re-establish the shared Mango session with the stored login (manager/admin only)
+      description: >-
+        Starts a fresh Mango login in the background and waits a few seconds for
+        it, then reports the resulting connection state. Never blocks longer
+        than that grace period.
+      responses:
+        "200":
+          description: Connection state after the reconnect attempt
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MangoStatus"
+        "401":
+          description: Unauthorized
         "403":
           description: Manager or admin role required
         "404":
           description: Mango credentials are not configured
-        "502":
-          description: Mango Office could not provide team KPI data
 
   /moizvonki/mango/credentials:
     put:
@@ -839,7 +859,46 @@ components:
       properties:
         isConnected:
           type: boolean
-      required: [isConnected]
+        state:
+          $ref: "#/components/schemas/MangoConnectionState"
+        message:
+          type: ["string", "null"]
+          description: Reason behind a non-ok state, ready to show to the user.
+        updatedAt:
+          type: ["string", "null"]
+          format: date-time
+          description: When the cached Mango numbers were last refreshed.
+      required: [isConnected, state, message, updatedAt]
+
+    MangoConnectionState:
+      type: string
+      description: >-
+        ok — data is current; refreshing — a background refresh is running;
+        reauth_required — Mango rejected the stored login; unavailable — Mango
+        could not be reached; not_configured — no shared connection yet;
+        operator_not_claimed — the user has not picked their Mango operator.
+      enum: [ok, refreshing, reauth_required, unavailable, not_configured, operator_not_claimed]
+
+    MangoKpiSnapshot:
+      type: object
+      properties:
+        state:
+          $ref: "#/components/schemas/MangoConnectionState"
+        calls:
+          type: number
+          minimum: 0
+        trafficSeconds:
+          type: number
+          minimum: 0
+        hasData:
+          type: boolean
+          description: False when no snapshot exists yet — calls/traffic are placeholders.
+        updatedAt:
+          type: ["string", "null"]
+          format: date-time
+        message:
+          type: ["string", "null"]
+      required: [state, calls, trafficSeconds, hasData, updatedAt, message]
 
     MangoKpi:
       type: object
@@ -910,6 +969,8 @@ components:
     MangoTeamKpi:
       type: object
       properties:
+        state:
+          $ref: "#/components/schemas/MangoConnectionState"
         members:
           type: array
           items:
@@ -920,7 +981,14 @@ components:
         totalTrafficSeconds:
           type: number
           minimum: 0
-      required: [members, totalCalls, totalTrafficSeconds]
+        hasData:
+          type: boolean
+        updatedAt:
+          type: ["string", "null"]
+          format: date-time
+        message:
+          type: ["string", "null"]
+      required: [state, members, totalCalls, totalTrafficSeconds, hasData, updatedAt, message]
 
     ClaimOperatorBody:
       type: object

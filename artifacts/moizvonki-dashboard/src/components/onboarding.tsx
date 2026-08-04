@@ -22,13 +22,16 @@ export function Onboarding({ onDone }: { onDone: () => void }) {
   const queryClient = useQueryClient();
   const [claimingId, setClaimingId] = useState<number | null>(null);
 
-  const { data: operators, isLoading, error, refetch } = useGetMoizvonkiMangoOperators({
+  const { data: operators, isLoading, isFetching, error, refetch } = useGetMoizvonkiMangoOperators({
     query: { queryKey: getGetMoizvonkiMangoOperatorsQueryKey(), retry: false },
   });
   const claim = useClaimMoizvonkiOperator();
 
   const errorStatus = (error as any)?.response?.status;
   const mangoNotConfigured = errorStatus === 404;
+  // 502 = the shared connection exists but Mango has not answered yet. The
+  // server keeps refreshing in the background, so retrying actually helps.
+  const mangoStillLoading = errorStatus === 502;
 
   const handleClaim = (memberId: number, memberName: string) => {
     setClaimingId(memberId);
@@ -74,11 +77,28 @@ export function Onboarding({ onDone }: { onDone: () => void }) {
                   Общее подключение Mango ещё не настроено. Попросите руководителя или администратора подключить Mango Office.
                 </p>
               </div>
+            ) : mangoStillLoading ? (
+              <div className="py-8 flex flex-col items-center gap-3 text-center">
+                <RefreshCw className={`w-6 h-6 text-muted-foreground ${isFetching ? 'animate-spin' : ''}`} />
+                <p className="text-sm text-muted-foreground">
+                  Список операторов ещё собирается из Mango — это может занять до минуты.
+                </p>
+                <Button variant="outline" size="sm" onClick={() => refetch()} disabled={isFetching}>
+                  Обновить
+                </Button>
+              </div>
             ) : error ? (
               <div className="py-8 flex flex-col items-center gap-3 text-center">
                 <AlertCircle className="w-6 h-6 text-destructive" />
                 <p className="text-sm text-muted-foreground">Не удалось получить список операторов.</p>
                 <Button variant="outline" size="sm" onClick={() => refetch()}>Повторить</Button>
+              </div>
+            ) : (operators ?? []).length === 0 ? (
+              <div className="py-8 flex flex-col items-center gap-3 text-center">
+                <AlertCircle className="w-6 h-6 text-muted-foreground" />
+                <p className="text-sm text-muted-foreground">
+                  В группе Mango пока нет операторов. Обратитесь к руководителю.
+                </p>
               </div>
             ) : (
               <ul className="divide-y">

@@ -38,8 +38,16 @@ export type MoizvonkiConnection = typeof moizvonkiConnections.$inferSelect;
  * userId is the owner's Clerk user id (legacy rows carry "default" until the
  * first admin claims them).
  */
+/**
+ * Table name note: the original `moizvonki_metrics` table was keyed by `date`
+ * alone. Adding `user_id` to its primary key had to be applied as a sequence of
+ * ALTERs, and the production schema diff emitted the new PRIMARY KEY before the
+ * new column, which aborted the deploy. Publishing a table under a new name
+ * sidesteps the ordering problem entirely: the whole definition, composite key
+ * included, is created in a single statement.
+ */
 export const moizvonkiMetrics = pgTable(
-  "moizvonki_metrics",
+  "moizvonki_daily_metrics",
   {
     userId: text("user_id").notNull().default("default"),
     date: text("date").notNull(),

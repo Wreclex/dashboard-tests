@@ -113,9 +113,13 @@ export default function DashboardPage({ me }: { me: TeamMember }) {
       // TeamView owns the team request. Do not fetch the personal KPI in
       // parallel while a manager is looking at the team tab.
       enabled: view === 'mine' && Boolean(statusMango?.isConnected && me.mangoMemberId),
-      staleTime: 5 * 60 * 1000,
+      staleTime: 60 * 1000,
       refetchOnWindowFocus: false,
       refetchOnReconnect: false,
+      // The server answers from its snapshot and refreshes Mango in the
+      // background — poll only while that refresh is actually running.
+      refetchInterval: (query) =>
+        query.state.data?.state === 'refreshing' ? 4000 : false,
     }
   });
 
@@ -159,8 +163,8 @@ export default function DashboardPage({ me }: { me: TeamMember }) {
   // Computations
   const mzCalls = metricsMz?.calls ?? 0;
   const mzTraffic = metricsMz?.trafficSeconds ?? 0;
-  const mangoCalls = kpiMango?.calls ?? 0;
-  const mangoTraffic = kpiMango?.trafficSeconds ?? 0;
+  const mangoCalls = kpiMango?.hasData ? kpiMango.calls : 0;
+  const mangoTraffic = kpiMango?.hasData ? kpiMango.trafficSeconds : 0;
 
   const totalCalls = mzCalls + mangoCalls;
   const totalTraffic = mzTraffic + mangoTraffic;
@@ -251,9 +255,19 @@ export default function DashboardPage({ me }: { me: TeamMember }) {
   const mzErrorStatus = (metricsMzError as any)?.response?.status;
   const mzNeedsReauth = mzErrorStatus === 401 || mzErrorStatus === 400;
   
-  const mangoErrorStatus = (kpiMangoError as any)?.response?.status;
-  const mangoNeedsReauth = mangoErrorStatus === 401;
-  const mangoIsDown = mangoErrorStatus === 502;
+  // The Mango endpoint always answers with an explicit state — an HTTP error
+  // here means the request itself failed (network, auth with our own API).
+  const mangoRequestFailed = Boolean(kpiMangoError);
+  const mangoState = kpiMango?.state;
+  const mangoNeedsReauth = mangoState === 'reauth_required';
+  const mangoIsDown = mangoState === 'unavailable' || mangoRequestFailed;
+  const mangoIsRefreshing = mangoState === 'refreshing';
+  const mangoNoOperator = mangoState === 'operator_not_claimed';
+  const mangoHasData = Boolean(kpiMango?.hasData);
+  const mangoUpdatedAt = kpiMango?.updatedAt ? new Date(kpiMango.updatedAt) : null;
+  const mangoUpdatedLabel = mangoUpdatedAt
+    ? `Обновлено в ${format(mangoUpdatedAt, 'HH:mm', { locale: ru })}`
+    : null;
 
   return (
     <div className="min-h-[100dvh] bg-background">
@@ -483,11 +497,13 @@ export default function DashboardPage({ me }: { me: TeamMember }) {
                 {!isConfiguredMango ? (
                   <Badge variant="outline" className="text-muted-foreground">Отключено</Badge>
                 ) : mangoNeedsReauth ? (
-                  <Badge variant="destructive" className="flex gap-1 items-center"><AlertCircle className="w-3 h-3"/> Сессия истекла</Badge>
+                  <Badge variant="destructive" className="flex gap-1 items-center"><AlertCircle className="w-3 h-3"/> Нужен вход</Badge>
                 ) : mangoIsDown ? (
-                  <Badge variant="destructive" className="flex gap-1 items-center"><ServerCrash className="w-3 h-3"/> Сбой сети</Badge>
-                ) : isKpiMangoLoading ? (
-                  <Badge variant="outline" className="flex gap-1 items-center text-muted-foreground"><RefreshCw className="w-3 h-3 animate-spin"/> Live</Badge>
+                  <Badge variant="destructive" className="flex gap-1 items-center"><ServerCrash className="w-3 h-3"/> Mango недоступен</Badge>
+                ) : mangoNoOperator ? (
+                  <Badge variant="outline" className="flex gap-1 items-center text-amber-600 border-amber-200 bg-amber-50 dark:bg-amber-900/10"><UserRound className="w-3 h-3"/> Нет оператора</Badge>
+                ) : mangoIsRefreshing || isKpiMangoLoading ? (
+                  <Badge variant="outline" className="flex gap-1 items-center text-muted-foreground"><RefreshCw className="w-3 h-3 animate-spin"/> Обновляется</Badge>
                 ) : (
                   <Badge variant="outline" className="text-teal-600 border-teal-200 bg-teal-50 dark:bg-teal-900/10 flex gap-1 items-center shadow-sm">
                     <span className="w-1.5 h-1.5 rounded-full bg-teal-500 animate-pulse"></span>
@@ -500,38 +516,62 @@ export default function DashboardPage({ me }: { me: TeamMember }) {
               {!isConfiguredMango ? (
                 <div className="py-6 text-center space-y-3">
                   <p className="text-sm text-muted-foreground">Получайте живые данные прямо из АТС.</p>
-                  <Button variant="outline" size="sm" onClick={() => openSettings('mango')} className="text-teal-700 hover:text-teal-800 border-teal-200 hover:bg-teal-50">
-                    Подключить Mango
-                  </Button>
+                  {isManager ? (
+                    <Button variant="outline" size="sm" onClick={() => openSettings('mango')} className="text-teal-700 hover:text-teal-800 border-teal-200 hover:bg-teal-50">
+                      Подключить Mango
+                    </Button>
+                  ) : (
+                    <p className="text-xs text-muted-foreground">
+                      Общее подключение настраивает руководитель — обратитесь к нему.
+                    </p>
+                  )}
                 </div>
-              ) : mangoNeedsReauth ? (
+              ) : mangoNoOperator ? (
+                <div className="py-6 text-center space-y-2 bg-amber-50/60 dark:bg-amber-900/10 rounded-lg border border-amber-200/60">
+                  <p className="text-sm font-medium text-amber-700 dark:text-amber-400">Оператор не выбран</p>
+                  <p className="text-xs text-muted-foreground px-4">
+                    Выберите себя в списке операторов Mango, чтобы видеть свои звонки.
+                  </p>
+                </div>
+              ) : mangoNeedsReauth && !mangoHasData ? (
                 <div className="py-6 text-center space-y-3 bg-destructive/5 rounded-lg border border-destructive/10">
-                  <p className="text-sm font-medium text-destructive">Сессия истекла</p>
-                  <Button variant="outline" size="sm" onClick={() => openSettings('mango')}>Войти заново</Button>
+                  <p className="text-sm font-medium text-destructive">Mango не принял сохранённый вход</p>
+                  {isManager ? (
+                    <Button variant="outline" size="sm" onClick={() => openSettings('mango')}>Войти заново</Button>
+                  ) : (
+                    <p className="text-xs text-muted-foreground px-4">
+                      Подключение восстанавливает руководитель — обратитесь к нему.
+                    </p>
+                  )}
                 </div>
-              ) : mangoIsDown ? (
-                <div className="py-6 text-center space-y-3 bg-muted/20 rounded-lg">
-                  <p className="text-sm text-muted-foreground">Сервер Mango Office временно недоступен</p>
+              ) : mangoIsDown && !mangoHasData ? (
+                <div className="py-6 text-center space-y-2 bg-muted/20 rounded-lg">
+                  <p className="text-sm text-muted-foreground">Mango Office временно недоступен</p>
+                  <p className="text-xs text-muted-foreground">Данные появятся автоматически, как только сервис ответит.</p>
                 </div>
-              ) : isKpiMangoLoading && !kpiMango ? (
+              ) : !mangoHasData ? (
                 <div className="py-6 flex flex-col items-center gap-2 text-muted-foreground">
-                  <RefreshCw className="w-5 h-5 animate-spin" />
-                  <span className="text-[11px]">Идет запрос к АТС...</span>
+                  <RefreshCw className={`w-5 h-5 ${mangoIsRefreshing || isKpiMangoLoading ? 'animate-spin' : ''}`} />
+                  <span className="text-[11px]">Собираем данные из АТС...</span>
                 </div>
-              ) : mangoErrorStatus === 404 ? (
-                 <div className="py-6 text-center text-sm text-muted-foreground bg-muted/20 rounded-lg">
-                   Нет звонков в Манго сегодня
-                 </div>
               ) : (
-                <div className="grid grid-cols-2 gap-4 pt-2">
-                  <div>
-                    <p className="text-xs text-muted-foreground mb-1">Звонков</p>
-                    <p className="text-2xl font-mono font-semibold">{mangoCalls}</p>
+                <div className="space-y-2 pt-2">
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <p className="text-xs text-muted-foreground mb-1">Звонков</p>
+                      <p className="text-2xl font-mono font-semibold">{mangoCalls}</p>
+                    </div>
+                    <div>
+                      <p className="text-xs text-muted-foreground mb-1">Трафик</p>
+                      <p className="text-2xl font-mono font-semibold">{formatDuration(mangoTraffic)}</p>
+                    </div>
                   </div>
-                  <div>
-                    <p className="text-xs text-muted-foreground mb-1">Трафик</p>
-                    <p className="text-2xl font-mono font-semibold">{formatDuration(mangoTraffic)}</p>
-                  </div>
+                  {mangoUpdatedLabel && (
+                    <p className="text-[11px] text-muted-foreground">
+                      {mangoUpdatedLabel}
+                      {mangoNeedsReauth ? ' · требуется повторный вход' : mangoIsDown ? ' · Mango не отвечает' : ''}
+                    </p>
+                  )}
                 </div>
               )}
             </CardContent>

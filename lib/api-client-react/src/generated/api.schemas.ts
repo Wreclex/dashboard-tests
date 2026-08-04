@@ -71,8 +71,48 @@ export interface MangoCredentialsInput {
   password: string;
 }
 
+/**
+ * ok — data is current; refreshing — a background refresh is running; reauth_required — Mango rejected the stored login; unavailable — Mango could not be reached; not_configured — no shared connection yet; operator_not_claimed — the user has not picked their Mango operator.
+ */
+export type MangoConnectionState = typeof MangoConnectionState[keyof typeof MangoConnectionState];
+
+
+export const MangoConnectionState = {
+  ok: 'ok',
+  refreshing: 'refreshing',
+  reauth_required: 'reauth_required',
+  unavailable: 'unavailable',
+  not_configured: 'not_configured',
+  operator_not_claimed: 'operator_not_claimed',
+} as const;
+
 export interface MangoStatus {
   isConnected: boolean;
+  state: MangoConnectionState;
+  /**
+     * Reason behind a non-ok state, ready to show to the user.
+     * @nullable
+     */
+  message: string | null;
+  /**
+     * When the cached Mango numbers were last refreshed.
+     * @nullable
+     */
+  updatedAt: string | null;
+}
+
+export interface MangoKpiSnapshot {
+  state: MangoConnectionState;
+  /** @minimum 0 */
+  calls: number;
+  /** @minimum 0 */
+  trafficSeconds: number;
+  /** False when no snapshot exists yet — calls/traffic are placeholders. */
+  hasData: boolean;
+  /** @nullable */
+  updatedAt: string | null;
+  /** @nullable */
+  message: string | null;
 }
 
 export interface MangoKpi {
@@ -124,11 +164,17 @@ export interface MangoOperatorChoice {
 }
 
 export interface MangoTeamKpi {
+  state: MangoConnectionState;
   members: MangoOperator[];
   /** @minimum 0 */
   totalCalls: number;
   /** @minimum 0 */
   totalTrafficSeconds: number;
+  hasData: boolean;
+  /** @nullable */
+  updatedAt: string | null;
+  /** @nullable */
+  message: string | null;
 }
 
 export interface ClaimOperatorBody {

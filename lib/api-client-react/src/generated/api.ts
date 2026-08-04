@@ -27,7 +27,7 @@ import type {
   GetSheetCountsParams,
   HealthStatus,
   MangoCredentialsInput,
-  MangoKpi,
+  MangoKpiSnapshot,
   MangoOperatorChoice,
   MangoStatus,
   MangoTeamKpi,
@@ -1132,11 +1132,12 @@ export const getGetMangoKpiUrl = () => {
 }
 
 /**
- * @summary Fetch today's Mango Office calls and traffic duration
+ * Answers from the stored snapshot and refreshes Mango in the background, so the request never waits on the (slow) Mango round trip. `state` describes the connection; `hasData` tells whether the numbers are real or placeholders.
+ * @summary Today's Mango Office calls and traffic duration for this user's own connection
  */
-export const getMangoKpi = async ( options?: Parameters<typeof customFetch>[1]): Promise<MangoKpi> => {
+export const getMangoKpi = async ( options?: Parameters<typeof customFetch>[1]): Promise<MangoKpiSnapshot> => {
 
-  return customFetch<MangoKpi>(getGetMangoKpiUrl(),
+  return customFetch<MangoKpiSnapshot>(getGetMangoKpiUrl(),
   {
     ...options,
     method: 'GET'
@@ -1179,7 +1180,7 @@ export type GetMangoKpiQueryError = ErrorType<void>
 
 
 /**
- * @summary Fetch today's Mango Office calls and traffic duration
+ * @summary Today's Mango Office calls and traffic duration for this user's own connection
  */
 
 export function useGetMangoKpi<TData = Awaited<ReturnType<typeof getMangoKpi>>, TError = ErrorType<void>>(
@@ -1287,12 +1288,12 @@ export const getGetMoizvonkiMangoKpiUrl = () => {
 }
 
 /**
- * Scoped to the Mango operator the user claimed at onboarding (member_id).
- * @summary Fetch today's Mango Office calls and traffic for the current user's claimed operator
+ * Answers from the stored snapshot and refreshes Mango in the background, so the request never waits on the (slow) Mango round trip. `state` describes the shared connection; `hasData` tells whether the numbers are real or placeholders.
+ * @summary Today's Mango calls and traffic for the current user's claimed operator
  */
-export const getMoizvonkiMangoKpi = async ( options?: Parameters<typeof customFetch>[1]): Promise<MangoKpi> => {
+export const getMoizvonkiMangoKpi = async ( options?: Parameters<typeof customFetch>[1]): Promise<MangoKpiSnapshot> => {
 
-  return customFetch<MangoKpi>(getGetMoizvonkiMangoKpiUrl(),
+  return customFetch<MangoKpiSnapshot>(getGetMoizvonkiMangoKpiUrl(),
   {
     ...options,
     method: 'GET'
@@ -1335,7 +1336,7 @@ export type GetMoizvonkiMangoKpiQueryError = ErrorType<void>
 
 
 /**
- * @summary Fetch today's Mango Office calls and traffic for the current user's claimed operator
+ * @summary Today's Mango calls and traffic for the current user's claimed operator
  */
 
 export function useGetMoizvonkiMangoKpi<TData = Awaited<ReturnType<typeof getMoizvonkiMangoKpi>>, TError = ErrorType<void>>(
@@ -1580,6 +1581,78 @@ export function useGetMoizvonkiTeamKpi<TData = Awaited<ReturnType<typeof getMoiz
 
 
 
+
+export const getReconnectMoizvonkiMangoUrl = () => {
+
+
+
+
+  return `/api/moizvonki/mango/reconnect`
+}
+
+/**
+ * Starts a fresh Mango login in the background and waits a few seconds for it, then reports the resulting connection state. Never blocks longer than that grace period.
+ * @summary Re-establish the shared Mango session with the stored login (manager/admin only)
+ */
+export const reconnectMoizvonkiMango = async ( options?: Parameters<typeof customFetch>[1]): Promise<MangoStatus> => {
+
+  return customFetch<MangoStatus>(getReconnectMoizvonkiMangoUrl(),
+  {
+    ...options,
+    method: 'POST'
+
+
+  }
+);}
+
+
+
+
+
+export const getReconnectMoizvonkiMangoMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof reconnectMoizvonkiMango>>, TError,void, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof reconnectMoizvonkiMango>>, TError,void, TContext> => {
+
+const mutationKey = ['reconnectMoizvonkiMango'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof reconnectMoizvonkiMango>>, void> = () => {
+
+
+          return  reconnectMoizvonkiMango(requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type ReconnectMoizvonkiMangoMutationResult = NonNullable<Awaited<ReturnType<typeof reconnectMoizvonkiMango>>>
+
+    export type ReconnectMoizvonkiMangoMutationError = ErrorType<void>
+
+    /**
+ * @summary Re-establish the shared Mango session with the stored login (manager/admin only)
+ */
+export const useReconnectMoizvonkiMango = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof reconnectMoizvonkiMango>>, TError,void, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof reconnectMoizvonkiMango>>,
+        TError,
+        void,
+        TContext
+      > => {
+      return useMutation(getReconnectMoizvonkiMangoMutationOptions(options));
+    }
 
 export const getPutMoizvonkiMangoCredentialsUrl = () => {
 

@@ -4,7 +4,15 @@ import { db, mangoCredentials } from "@workspace/db";
 import { eq } from "drizzle-orm";
 import { encryptToken } from "../lib/encrypt";
 import { mangoBrowserLogin, type MangoBrowserSession } from "../lib/mangoBrowser";
-import { getMangoKpi, MangoKpiUnavailableError, MangoAuthError, parseOperatorGroups } from "../lib/mangoKpi";
+import { MangoKpiUnavailableError, MangoAuthError, parseOperatorGroups } from "../lib/mangoKpi";
+import {
+  clearUserMangoSnapshot,
+  ensureUserMangoSnapshot,
+  isUserMangoRefreshRunning,
+  readSessionInfo,
+  readUserSnapshot,
+  refreshUserMangoSnapshot,
+} from "../lib/mangoSession";
 
 const router = Router();
 
@@ -21,11 +29,22 @@ function requireAuth(req: any, res: any, next: any): void {
 router.get("/status", requireAuth, async (req: any, res): Promise<void> => {
   try {
     const [credential] = await db
-      .select({ userId: mangoCredentials.userId })
+      .select()
       .from(mangoCredentials)
       .where(eq(mangoCredentials.userId, req.userId))
       .limit(1);
-    res.json({ isConnected: Boolean(credential) });
+    if (!credential) {
+      res.json({ isConnected: false, state: "not_configured", message: null, updatedAt: null });
+      return;
+    }
+    const info = readSessionInfo(credential);
+    const snapshot = await readUserSnapshot(req.userId);
+    res.json({
+      isConnected: true,
+      state: isUserMangoRefreshRunning(req.userId) ? "refreshing" : info.state,
+      message: info.message,
+      updatedAt: snapshot?.fetchedAt.toISOString() ?? null,
+    });
   } catch (err) {
     req.log.error({ err }, "Failed to get Mango Office status");
     res.status(500).json({ error: "Internal server error" });
@@ -46,10 +65,13 @@ router.put("/credentials", requireAuth, async (req: any, res): Promise<void> => 
 
   // Save credentials first (encrypted) — even if the verification login fails
   // (e.g. captcha), the KPI flow will retry with them later.
-  const persist = async (session?: MangoBrowserSession) => {
+  const persist = async (session?: MangoBrowserSession, failure?: string | null) => {
     const base = {
       email: encryptToken(email.trim()),
       password: encryptToken(password),
+      sessionState: session ? "ok" : "reauth_required",
+      sessionError: session ? null : (failure ?? null),
+      sessionCheckedAt: new Date(),
       updatedAt: new Date(),
     };
     const withTokens = session
@@ -68,9 +90,18 @@ router.put("/credentials", requireAuth, async (req: any, res): Promise<void> => 
   try {
     const session = await mangoBrowserLogin(email.trim(), password);
     await persist(session);
+    // Warm the snapshot with the fresh session so the KPI is ready when the
+    // user asks for it.
+    const [stored] = await db
+      .select()
+      .from(mangoCredentials)
+      .where(eq(mangoCredentials.userId, req.userId))
+      .limit(1);
+    if (stored) refreshUserMangoSnapshot(stored);
     res.status(204).send();
   } catch (err) {
-    await persist().catch((e) => req.log.error({ err: e }, "Failed to persist Mango credentials"));
+    const failure = err instanceof Error ? err.message : null;
+    await persist(undefined, failure).catch((e) => req.log.error({ err: e }, "Failed to persist Mango credentials"));
     if (err instanceof MangoAuthError) {
       res.status(401).json({ error: "auth_failed", message: err.message });
       return;
@@ -120,6 +151,9 @@ router.put("/token", requireAuth, async (req: any, res): Promise<void> => {
     const set = {
       authToken: encryptToken(authToken),
       operatorGroups: operatorGroups.length > 0 ? JSON.stringify(operatorGroups) : null,
+      sessionState: "ok",
+      sessionError: null,
+      sessionCheckedAt: new Date(),
       updatedAt: new Date(),
     };
     await db
@@ -143,6 +177,7 @@ router.put("/token", requireAuth, async (req: any, res): Promise<void> => {
 router.delete("/credentials", requireAuth, async (req: any, res): Promise<void> => {
   try {
     await db.delete(mangoCredentials).where(eq(mangoCredentials.userId, req.userId));
+    await clearUserMangoSnapshot(req.userId);
     res.status(204).send();
   } catch (err) {
     req.log.error({ err }, "Failed to delete Mango Office credentials");
@@ -150,6 +185,14 @@ router.delete("/credentials", requireAuth, async (req: any, res): Promise<void> 
   }
 });
 
+/**
+ * Today's Mango KPI for this user's own connection.
+ *
+ * Answers from the stored snapshot and refreshes Mango in the background, so
+ * the request is bounded even when the session expired and a full headless
+ * re-login is needed. `state` says what the connection is doing; `hasData`
+ * says whether the numbers are real.
+ */
 router.get("/kpi", requireAuth, async (req: any, res): Promise<void> => {
   try {
     const [credential] = await db
@@ -158,21 +201,29 @@ router.get("/kpi", requireAuth, async (req: any, res): Promise<void> => {
       .where(eq(mangoCredentials.userId, req.userId))
       .limit(1);
     if (!credential) {
-      res.status(404).json({ error: "credentials_not_configured" });
+      res.json({ state: "not_configured", calls: 0, trafficSeconds: 0, hasData: false, updatedAt: null, message: null });
       return;
     }
-    const kpi = await getMangoKpi(credential, { userId: req.userId });
-    res.json(kpi);
+
+    await ensureUserMangoSnapshot(credential);
+
+    // Re-read: the refresh we just awaited may have changed the session state.
+    const [latest] = await db
+      .select()
+      .from(mangoCredentials)
+      .where(eq(mangoCredentials.userId, req.userId))
+      .limit(1);
+    const info = readSessionInfo(latest ?? credential);
+    const snapshot = await readUserSnapshot(req.userId);
+    res.json({
+      state: isUserMangoRefreshRunning(req.userId) ? "refreshing" : info.state,
+      calls: snapshot?.data.calls ?? 0,
+      trafficSeconds: snapshot?.data.trafficSeconds ?? 0,
+      hasData: Boolean(snapshot),
+      updatedAt: snapshot?.fetchedAt.toISOString() ?? null,
+      message: info.message,
+    });
   } catch (err) {
-    if (err instanceof MangoAuthError) {
-      res.status(401).json({ error: "auth_failed", message: err.message });
-      return;
-    }
-    if (err instanceof MangoKpiUnavailableError) {
-      req.log.warn({ err }, "Mango Office KPI unavailable");
-      res.status(502).json({ error: "mango_kpi_unavailable", message: err.message });
-      return;
-    }
     req.log.error({ err }, "Failed to fetch Mango Office KPI");
     res.status(500).json({ error: "Internal server error" });
   }

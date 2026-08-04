@@ -31,9 +31,12 @@ export function TeamView({ shiftHours }: { shiftHours: number }) {
     query: {
       queryKey: getGetMoizvonkiTeamKpiQueryKey(),
       retry: false,
-      staleTime: 5 * 60 * 1000,
+      staleTime: 60 * 1000,
       refetchOnWindowFocus: false,
       refetchOnReconnect: false,
+      // The server answers from its snapshot; keep polling only while it is
+      // actually refreshing Mango in the background.
+      refetchInterval: (query) => (query.state.data?.state === 'refreshing' ? 4000 : false),
     },
   });
 
@@ -63,7 +66,24 @@ export function TeamView({ shiftHours }: { shiftHours: number }) {
   };
 
   const isChecked = (memberId: number) => selected === null || selected.has(memberId);
-  const errorStatus = (error as any)?.response?.status;
+  const state = data?.state;
+  const hasData = Boolean(data?.hasData);
+  const updatedAt = data?.updatedAt ? new Date(data.updatedAt) : null;
+  const updatedLabel = updatedAt
+    ? `Обновлено в ${updatedAt.toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' })}`
+    : null;
+
+  /** Nothing to show yet — explain why instead of spinning forever. */
+  const emptyReason =
+    error
+      ? 'Не удалось получить показатели команды. Проверьте соединение и повторите.'
+      : state === 'not_configured'
+        ? 'Общее подключение Mango не настроено. Подключите Mango Office в настройках.'
+        : state === 'reauth_required'
+          ? `Mango не принял сохранённый вход${data?.message ? `: ${data.message}` : ''}. Войдите заново в настройках Mango.`
+          : state === 'unavailable'
+            ? 'Mango Office временно недоступен. Данные появятся автоматически, как только сервис ответит.'
+            : null;
 
   return (
     <div className="space-y-6">
@@ -78,6 +98,18 @@ export function TeamView({ shiftHours }: { shiftHours: number }) {
           )}
         </div>
         <div className="flex items-center gap-2">
+          {updatedLabel && (
+            <span className="text-xs text-muted-foreground">
+              {updatedLabel}
+              {state === 'reauth_required'
+                ? ' · нужен повторный вход'
+                : state === 'unavailable'
+                  ? ' · Mango не отвечает'
+                  : state === 'refreshing'
+                    ? ' · обновляем'
+                    : ''}
+            </span>
+          )}
           {selected !== null && (
             <Button variant="ghost" size="sm" onClick={() => setSelected(null)}>
               Сбросить фильтр
@@ -95,18 +127,19 @@ export function TeamView({ shiftHours }: { shiftHours: number }) {
           <RefreshCw className="w-6 h-6 animate-spin" />
           <p className="text-sm">Загружаем показатели команды из Mango...</p>
         </div>
-      ) : error ? (
+      ) : !hasData && emptyReason ? (
         <Card className="border-destructive/30">
           <CardContent className="py-10 flex flex-col items-center gap-3 text-center">
             <AlertCircle className="w-6 h-6 text-destructive" />
-            <p className="text-sm text-muted-foreground max-w-md">
-              {errorStatus === 404
-                ? 'Общее подключение Mango не настроено. Подключите Mango Office в настройках.'
-                : errorStatus === 401
-                  ? 'Сессия Mango истекла — обновите подключение в настройках.'
-                  : 'Не удалось получить показатели команды из Mango Office.'}
-            </p>
+            <p className="text-sm text-muted-foreground max-w-md">{emptyReason}</p>
             <Button variant="outline" size="sm" onClick={() => refetch()}>Повторить</Button>
+          </CardContent>
+        </Card>
+      ) : !hasData ? (
+        <Card>
+          <CardContent className="py-10 flex flex-col items-center gap-3 text-center text-muted-foreground">
+            <RefreshCw className="w-6 h-6 animate-spin" />
+            <p className="text-sm max-w-md">Собираем показатели команды из Mango — это может занять до минуты.</p>
           </CardContent>
         </Card>
       ) : (

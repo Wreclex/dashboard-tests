@@ -21,12 +21,14 @@ import {
   useGetMoizvonkiMangoStatus,
   usePutMoizvonkiMangoCredentials,
   useDeleteMoizvonkiMangoCredentials,
+  useReconnectMoizvonkiMango,
   getGetMoizvonkiStatusQueryKey,
   getGetMoizvonkiMetricsQueryKey,
   getGetMoizvonkiHistoryQueryKey,
   getGetMoizvonkiSettingsQueryKey,
   getGetMoizvonkiMangoStatusQueryKey,
   getGetMoizvonkiMangoKpiQueryKey,
+  getGetMoizvonkiTeamKpiQueryKey,
 } from '@workspace/api-client-react';
 
 const sessionSchema = z.object({
@@ -80,6 +82,7 @@ export function ConnectionSettings({
   
   const putMangoCredentials = usePutMoizvonkiMangoCredentials();
   const deleteMangoCredentials = useDeleteMoizvonkiMangoCredentials();
+  const reconnectMango = useReconnectMoizvonkiMango();
   
   const putSettings = usePutMoizvonkiSettings();
 
@@ -131,6 +134,32 @@ export function ConnectionSettings({
         queryClient.invalidateQueries({ queryKey: getGetMoizvonkiMetricsQueryKey() });
       },
       onError: () => toast({ title: 'Ошибка', description: 'Не удалось сохранить учетные данные Мои Звонки.', variant: 'destructive' })
+    });
+  };
+
+  /**
+   * Re-run the Mango login with the credentials already stored, so a manager
+   * can recover an expired session without retyping the password.
+   */
+  const handleReconnectMango = () => {
+    reconnectMango.mutate(undefined, {
+      onSuccess: (status) => {
+        queryClient.invalidateQueries({ queryKey: getGetMoizvonkiMangoStatusQueryKey() });
+        queryClient.invalidateQueries({ queryKey: getGetMoizvonkiMangoKpiQueryKey() });
+        queryClient.invalidateQueries({ queryKey: getGetMoizvonkiTeamKpiQueryKey() });
+        if (status.state === 'ok') {
+          toast({ title: 'Подключение восстановлено', description: 'Данные Mango обновлены.' });
+        } else if (status.state === 'refreshing') {
+          toast({ title: 'Входим в Mango', description: 'Это займёт до минуты — данные появятся автоматически.' });
+        } else {
+          toast({
+            title: 'Не удалось войти в Mango',
+            description: status.message ?? 'Проверьте email и пароль и сохраните их заново.',
+            variant: 'destructive',
+          });
+        }
+      },
+      onError: () => toast({ title: 'Ошибка', description: 'Не удалось перезапустить сессию Mango.', variant: 'destructive' }),
     });
   };
 
@@ -324,9 +353,13 @@ export function ConnectionSettings({
                     <div className="space-y-1">
                       <div className="flex items-center gap-2">
                         <span className="font-medium text-sm">Статус:</span>
-                        {statusMango?.isConnected ? (
+                        {statusMango?.isConnected && statusMango.state === 'ok' ? (
                           <span className="flex items-center gap-1.5 text-sm text-green-600 font-medium">
                             <CheckCircle2 className="w-4 h-4" /> Подключено
+                          </span>
+                        ) : statusMango?.isConnected ? (
+                          <span className="flex items-center gap-1.5 text-sm text-amber-600 font-medium">
+                            <AlertCircle className="w-4 h-4" /> Требует внимания
                           </span>
                         ) : (
                           <span className="flex items-center gap-1.5 text-sm text-muted-foreground font-medium">
@@ -337,11 +370,38 @@ export function ConnectionSettings({
                       <div className="text-xs text-muted-foreground">
                         Интеграция с личным кабинетом Mango Office (lk.mango-office.ru)
                       </div>
+                      {statusMango?.isConnected && statusMango.state !== 'ok' && (
+                        <div className={`text-xs ${statusMango.state === 'refreshing' ? 'text-muted-foreground' : 'text-destructive'}`}>
+                          {statusMango.state === 'refreshing'
+                            ? 'Обновляем сессию Mango...'
+                            : statusMango.state === 'reauth_required'
+                              ? `Mango не принял сохранённый вход${statusMango.message ? `: ${statusMango.message}` : ''}`
+                              : `Mango недоступен${statusMango.message ? `: ${statusMango.message}` : ''}`}
+                        </div>
+                      )}
+                      {statusMango?.updatedAt && (
+                        <div className="text-xs text-muted-foreground">
+                          Данные обновлены: {new Date(statusMango.updatedAt).toLocaleString('ru-RU', { hour: '2-digit', minute: '2-digit', day: '2-digit', month: '2-digit' })}
+                        </div>
+                      )}
                     </div>
                     {statusMango?.isConnected && (
-                      <Button variant="destructive" size="sm" onClick={handleDisconnectMango} disabled={deleteMangoCredentials.isPending}>
-                        Отключить
-                      </Button>
+                      <div className="flex flex-col gap-2">
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={handleReconnectMango}
+                          disabled={reconnectMango.isPending || statusMango.state === 'refreshing'}
+                        >
+                          {(reconnectMango.isPending || statusMango.state === 'refreshing') && (
+                            <RefreshCw className="w-4 h-4 mr-2 animate-spin" />
+                          )}
+                          Войти заново
+                        </Button>
+                        <Button variant="destructive" size="sm" onClick={handleDisconnectMango} disabled={deleteMangoCredentials.isPending}>
+                          Отключить
+                        </Button>
+                      </div>
                     )}
                   </div>
 

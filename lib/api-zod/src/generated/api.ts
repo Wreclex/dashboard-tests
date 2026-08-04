@@ -179,7 +179,10 @@ export const SendTelegramMessageResponse = zod.object({
  * @summary Get Mango Office connection status
  */
 export const GetMangoStatusResponse = zod.object({
-  "isConnected": zod.boolean()
+  "isConnected": zod.boolean(),
+  "state": zod.enum(['ok', 'refreshing', 'reauth_required', 'unavailable', 'not_configured', 'operator_not_claimed']).describe('ok — data is current; refreshing — a background refresh is running; reauth_required — Mango rejected the stored login; unavailable — Mango could not be reached; not_configured — no shared connection yet; operator_not_claimed — the user has not picked their Mango operator.'),
+  "message": zod.string().nullable().describe('Reason behind a non-ok state, ready to show to the user.'),
+  "updatedAt": zod.coerce.date().nullable().describe('When the cached Mango numbers were last refreshed.')
 })
 
 
@@ -220,7 +223,8 @@ export const PutMangoTokenResponse = zod.void()
 
 
 /**
- * @summary Fetch today's Mango Office calls and traffic duration
+ * Answers from the stored snapshot and refreshes Mango in the background, so the request never waits on the (slow) Mango round trip. `state` describes the connection; `hasData` tells whether the numbers are real or placeholders.
+ * @summary Today's Mango Office calls and traffic duration for this user's own connection
  */
 export const getMangoKpiResponseCallsMin = 0;
 
@@ -229,8 +233,12 @@ export const getMangoKpiResponseTrafficSecondsMin = 0;
 
 
 export const GetMangoKpiResponse = zod.object({
+  "state": zod.enum(['ok', 'refreshing', 'reauth_required', 'unavailable', 'not_configured', 'operator_not_claimed']).describe('ok — data is current; refreshing — a background refresh is running; reauth_required — Mango rejected the stored login; unavailable — Mango could not be reached; not_configured — no shared connection yet; operator_not_claimed — the user has not picked their Mango operator.'),
   "calls": zod.number().min(getMangoKpiResponseCallsMin),
-  "trafficSeconds": zod.number().min(getMangoKpiResponseTrafficSecondsMin)
+  "trafficSeconds": zod.number().min(getMangoKpiResponseTrafficSecondsMin),
+  "hasData": zod.boolean().describe('False when no snapshot exists yet — calls\/traffic are placeholders.'),
+  "updatedAt": zod.coerce.date().nullable(),
+  "message": zod.string().nullable()
 })
 
 
@@ -239,13 +247,16 @@ export const GetMangoKpiResponse = zod.object({
  * @summary Get the shared Mango Office connection status for the combined dashboard
  */
 export const GetMoizvonkiMangoStatusResponse = zod.object({
-  "isConnected": zod.boolean()
+  "isConnected": zod.boolean(),
+  "state": zod.enum(['ok', 'refreshing', 'reauth_required', 'unavailable', 'not_configured', 'operator_not_claimed']).describe('ok — data is current; refreshing — a background refresh is running; reauth_required — Mango rejected the stored login; unavailable — Mango could not be reached; not_configured — no shared connection yet; operator_not_claimed — the user has not picked their Mango operator.'),
+  "message": zod.string().nullable().describe('Reason behind a non-ok state, ready to show to the user.'),
+  "updatedAt": zod.coerce.date().nullable().describe('When the cached Mango numbers were last refreshed.')
 })
 
 
 /**
- * Scoped to the Mango operator the user claimed at onboarding (member_id).
- * @summary Fetch today's Mango Office calls and traffic for the current user's claimed operator
+ * Answers from the stored snapshot and refreshes Mango in the background, so the request never waits on the (slow) Mango round trip. `state` describes the shared connection; `hasData` tells whether the numbers are real or placeholders.
+ * @summary Today's Mango calls and traffic for the current user's claimed operator
  */
 export const getMoizvonkiMangoKpiResponseCallsMin = 0;
 
@@ -254,8 +265,12 @@ export const getMoizvonkiMangoKpiResponseTrafficSecondsMin = 0;
 
 
 export const GetMoizvonkiMangoKpiResponse = zod.object({
+  "state": zod.enum(['ok', 'refreshing', 'reauth_required', 'unavailable', 'not_configured', 'operator_not_claimed']).describe('ok — data is current; refreshing — a background refresh is running; reauth_required — Mango rejected the stored login; unavailable — Mango could not be reached; not_configured — no shared connection yet; operator_not_claimed — the user has not picked their Mango operator.'),
   "calls": zod.number().min(getMoizvonkiMangoKpiResponseCallsMin),
-  "trafficSeconds": zod.number().min(getMoizvonkiMangoKpiResponseTrafficSecondsMin)
+  "trafficSeconds": zod.number().min(getMoizvonkiMangoKpiResponseTrafficSecondsMin),
+  "hasData": zod.boolean().describe('False when no snapshot exists yet — calls\/traffic are placeholders.'),
+  "updatedAt": zod.coerce.date().nullable(),
+  "message": zod.string().nullable()
 })
 
 
@@ -306,6 +321,7 @@ export const getMoizvonkiTeamKpiResponseTotalTrafficSecondsMin = 0;
 
 
 export const GetMoizvonkiTeamKpiResponse = zod.object({
+  "state": zod.enum(['ok', 'refreshing', 'reauth_required', 'unavailable', 'not_configured', 'operator_not_claimed']).describe('ok — data is current; refreshing — a background refresh is running; reauth_required — Mango rejected the stored login; unavailable — Mango could not be reached; not_configured — no shared connection yet; operator_not_claimed — the user has not picked their Mango operator.'),
   "members": zod.array(zod.object({
   "memberId": zod.number(),
   "memberName": zod.string(),
@@ -313,7 +329,22 @@ export const GetMoizvonkiTeamKpiResponse = zod.object({
   "trafficSeconds": zod.number().min(getMoizvonkiTeamKpiResponseMembersItemTrafficSecondsMin)
 })),
   "totalCalls": zod.number().min(getMoizvonkiTeamKpiResponseTotalCallsMin),
-  "totalTrafficSeconds": zod.number().min(getMoizvonkiTeamKpiResponseTotalTrafficSecondsMin)
+  "totalTrafficSeconds": zod.number().min(getMoizvonkiTeamKpiResponseTotalTrafficSecondsMin),
+  "hasData": zod.boolean(),
+  "updatedAt": zod.coerce.date().nullable(),
+  "message": zod.string().nullable()
+})
+
+
+/**
+ * Starts a fresh Mango login in the background and waits a few seconds for it, then reports the resulting connection state. Never blocks longer than that grace period.
+ * @summary Re-establish the shared Mango session with the stored login (manager/admin only)
+ */
+export const ReconnectMoizvonkiMangoResponse = zod.object({
+  "isConnected": zod.boolean(),
+  "state": zod.enum(['ok', 'refreshing', 'reauth_required', 'unavailable', 'not_configured', 'operator_not_claimed']).describe('ok — data is current; refreshing — a background refresh is running; reauth_required — Mango rejected the stored login; unavailable — Mango could not be reached; not_configured — no shared connection yet; operator_not_claimed — the user has not picked their Mango operator.'),
+  "message": zod.string().nullable().describe('Reason behind a non-ok state, ready to show to the user.'),
+  "updatedAt": zod.coerce.date().nullable().describe('When the cached Mango numbers were last refreshed.')
 })
 
 

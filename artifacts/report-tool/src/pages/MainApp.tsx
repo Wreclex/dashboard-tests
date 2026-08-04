@@ -36,11 +36,18 @@ export default function MainApp() {
   const [adminOpen, setAdminOpen] = useState(false);
 
   // Team profile — registers the user on first login and carries their role.
-  const { data: me } = useGetMe({ query: { queryKey: getGetMeQueryKey(), enabled: Boolean(userId) } });
+  const { data: me, error: meError } = useGetMe({
+    query: { queryKey: getGetMeQueryKey(), enabled: Boolean(userId) },
+  });
   const isAdmin = me?.role === 'admin';
+  // A failed profile load silently downgrades everyone to the employee view,
+  // so say so instead of letting an admin wonder where their controls went.
+  const profileFailed = Boolean(meError);
   const [copied, setCopied] = useState(false);
   const [syncStatus, setSyncStatus] = useState<'idle' | 'loading' | 'ok' | 'err'>('idle');
-  const [mangoSyncStatus, setMangoSyncStatus] = useState<'idle' | 'loading' | 'ok' | 'expired' | 'err'>('idle');
+  const [mangoSyncStatus, setMangoSyncStatus] = useState<
+    'idle' | 'loading' | 'ok' | 'stale' | 'pending' | 'expired' | 'err'
+  >('idle');
 
   // Strip leading "#" from tag1 to get the bare manager name for sheet filtering
   const sheetName = signature.tag1.replace(/^#/, '').trim() || undefined;
@@ -75,17 +82,24 @@ export default function MainApp() {
     setMangoSyncStatus('loading');
     try {
       const result = await fetchMangoKpi();
-      if (result.data) {
-        updateField('kz', result.data.calls);
-        updateField('trafikCurrent', formatTrafficSeconds(result.data.trafficSeconds));
-        setMangoSyncStatus('ok');
+      const kpi = result.data;
+      if (kpi?.hasData) {
+        updateField('kz', kpi.calls);
+        updateField('trafikCurrent', formatTrafficSeconds(kpi.trafficSeconds));
+        // Numbers can be a couple of minutes old while Mango is being
+        // re-read; say so rather than presenting them as live.
+        setMangoSyncStatus(kpi.state === 'ok' ? 'ok' : 'stale');
+      } else if (kpi?.state === 'refreshing') {
+        // The server is fetching in the background — a retry in a few
+        // seconds will have the numbers.
+        setMangoSyncStatus('pending');
+      } else if (kpi?.state === 'reauth_required' || kpi?.state === 'not_configured') {
+        setMangoSyncStatus('expired');
       } else {
-        const errorCode = (result.error as { data?: { error?: string } } | null)?.data?.error;
-        setMangoSyncStatus(errorCode === 'token_expired' ? 'expired' : 'err');
+        setMangoSyncStatus('err');
       }
-    } catch (err) {
-      const errorCode = (err as { data?: { error?: string } })?.data?.error;
-      setMangoSyncStatus(errorCode === 'token_expired' ? 'expired' : 'err');
+    } catch {
+      setMangoSyncStatus('err');
     }
     setTimeout(() => setMangoSyncStatus('idle'), 3000);
   }, [fetchMangoKpi, updateField]);
@@ -231,7 +245,7 @@ export default function MainApp() {
                         onClick={handleSyncMango}
                         disabled={mangoSyncStatus === 'loading'}
                         className={`press-sm flex items-center gap-1.5 h-7 px-3 rounded-full text-[10px] font-bold uppercase tracking-[0.14em] transition-colors ${
-                          mangoSyncStatus === 'ok'
+                          mangoSyncStatus === 'ok' || mangoSyncStatus === 'stale'
                             ? 'bg-green-500/15 text-green-400'
                             : mangoSyncStatus === 'err' || mangoSyncStatus === 'expired'
                             ? 'bg-destructive/15 text-destructive'
@@ -239,7 +253,17 @@ export default function MainApp() {
                         }`}
                       >
                         <RefreshCw size={11} className={mangoSyncStatus === 'loading' ? 'animate-spin' : ''} />
-                        {mangoSyncStatus === 'ok' ? 'Синхр.' : mangoSyncStatus === 'expired' ? 'Токен истёк' : mangoSyncStatus === 'err' ? 'Ошибка' : 'Mango'}
+                        {mangoSyncStatus === 'ok'
+                          ? 'Синхр.'
+                          : mangoSyncStatus === 'stale'
+                            ? 'Данные не свежие'
+                            : mangoSyncStatus === 'pending'
+                              ? 'Собираем...'
+                              : mangoSyncStatus === 'expired'
+                                ? 'Нужен вход'
+                                : mangoSyncStatus === 'err'
+                                  ? 'Ошибка'
+                                  : 'Mango'}
                       </button>
                       <button
                         onClick={handleSyncSheet}
@@ -400,6 +424,14 @@ export default function MainApp() {
                     Авто
                   </button>
                 </Show>
+                {profileFailed && (
+                  <span
+                    title="Не удалось загрузить профиль — доступные действия могут быть ограничены. Обновите страницу."
+                    className="flex items-center gap-1.5 h-8 px-3 rounded-full text-[10px] font-bold uppercase tracking-[0.14em] bg-destructive/15 text-destructive"
+                  >
+                    Профиль не загружен
+                  </span>
+                )}
                 {isAdmin && (
                   <button
                     onClick={() => setAdminOpen(true)}

@@ -5,7 +5,19 @@
  * API specification
  * OpenAPI spec version: 0.1.0
  */
+import type { MangoConnectionState } from './mangoConnectionState';
 
 export interface MangoStatus {
   isConnected: boolean;
+  state: MangoConnectionState;
+  /**
+     * Reason behind a non-ok state, ready to show to the user.
+     * @nullable
+     */
+  message: string | null;
+  /**
+     * When the cached Mango numbers were last refreshed.
+     * @nullable
+     */
+  updatedAt: Date | null;
 }

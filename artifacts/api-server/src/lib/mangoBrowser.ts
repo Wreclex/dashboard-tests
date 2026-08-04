@@ -45,15 +45,39 @@ export type MangoBrowserSession = {
 };
 
 /**
+ * Only one Chromium login at a time.
+ *
+ * A login costs a full browser plus up to a minute of page work. Several
+ * callers can want one at once — a dashboard refresh, a manager saving
+ * credentials, the report scheduler — and running them in parallel exhausts
+ * the container's memory long before it helps anyone. Queueing keeps peak
+ * usage at exactly one browser.
+ */
+let loginQueue: Promise<unknown> = Promise.resolve();
+
+/**
  * Log into Mango CCC with email + password and return fresh tokens.
+ * Serialized process-wide; concurrent callers wait their turn.
  *
  * @throws MangoAuthError            — wrong credentials / login rejected
  * @throws MangoKpiUnavailableError  — infrastructure problems (browser, network, timeout)
  */
-export async function mangoBrowserLogin(
+export function mangoBrowserLogin(
   email: string,
   password: string,
   timeoutMs: number = LOGIN_TIMEOUT_MS,
+): Promise<MangoBrowserSession> {
+  const next = loginQueue
+    .catch(() => {}) // one caller's failure must not poison the queue
+    .then(() => runMangoBrowserLogin(email, password, timeoutMs));
+  loginQueue = next;
+  return next;
+}
+
+async function runMangoBrowserLogin(
+  email: string,
+  password: string,
+  timeoutMs: number,
 ): Promise<MangoBrowserSession> {
   const browser = await chromium
     .launch({ executablePath: chromiumPath(), args: ["--no-sandbox", "--disable-dev-shm-usage"] })

@@ -20,5 +20,6 @@
 export * from "./telegramChannels";
 export * from "./autoReports";
 export * from "./mangoCredentials";
+export * from "./mangoKpiSnapshots";
 export * from "./moizvonki";
 export * from "./teamMembers";

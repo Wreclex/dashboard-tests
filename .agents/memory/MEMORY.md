@@ -2,3 +2,5 @@
 - [Scheduled report delivery](scheduled-report-delivery.md) — use persisted due times and token-fenced DB leases for reliable multi-instance Telegram schedules.
 - [Mango auth approach](mango-auth-approach.md) — KPI API needs RS256 jwt_token in a form-urlencoded body plus GroupId[]; headless login harvests both, refresh tokens are useless.
 - [Dashboard KPI fetching](dashboard-kpi-fetching.md) — gate slow external KPI queries on connection/view readiness and disable implicit background refetches.
+- [Mango snapshot serving](mango-snapshot-serving.md) — never call Mango inside a request; serve the stored snapshot with an explicit state and refresh in the background.
+- [Publish schema diff ordering](publish-schema-diff-ordering.md) — reshaping a primary key can emit statements out of order; publish the table under a new name instead.

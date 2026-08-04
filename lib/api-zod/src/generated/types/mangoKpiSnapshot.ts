@@ -6,15 +6,14 @@
  * OpenAPI spec version: 0.1.0
  */
 import type { MangoConnectionState } from './mangoConnectionState';
-import type { MangoOperator } from './mangoOperator';
 
-export interface MangoTeamKpi {
+export interface MangoKpiSnapshot {
   state: MangoConnectionState;
-  members: MangoOperator[];
   /** @minimum 0 */
-  totalCalls: number;
+  calls: number;
   /** @minimum 0 */
-  totalTrafficSeconds: number;
+  trafficSeconds: number;
+  /** False when no snapshot exists yet — calls/traffic are placeholders. */
   hasData: boolean;
   /** @nullable */
   updatedAt: Date | null;
