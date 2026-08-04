@@ -9,6 +9,61 @@ import * as zod from 'zod';
 
 
 /**
+ * Registers the user on first call (default role "employee"; the very
+ * first registered user becomes "admin" and claims the legacy
+ * single-user dashboard data). Shared by both apps.
+ * @summary Get the authenticated user's profile and role
+ */
+export const GetMeResponse = zod.object({
+  "clerkUserId": zod.string(),
+  "displayName": zod.string().nullable(),
+  "email": zod.string().nullable(),
+  "role": zod.enum(['admin', 'manager', 'employee']),
+  "mangoMemberId": zod.number().nullable(),
+  "mangoMemberName": zod.string().nullable(),
+  "createdAt": zod.coerce.date()
+})
+
+
+/**
+ * @summary List all registered users (admin only)
+ */
+export const ListAdminUsersResponseItem = zod.object({
+  "clerkUserId": zod.string(),
+  "displayName": zod.string().nullable(),
+  "email": zod.string().nullable(),
+  "role": zod.enum(['admin', 'manager', 'employee']),
+  "mangoMemberId": zod.number().nullable(),
+  "mangoMemberName": zod.string().nullable(),
+  "createdAt": zod.coerce.date()
+})
+export const ListAdminUsersResponse = zod.array(ListAdminUsersResponseItem)
+
+
+/**
+ * An administrator cannot change their own role.
+ * @summary Change a user's role (admin only)
+ */
+export const UpdateAdminUserRoleParams = zod.object({
+  "clerkUserId": zod.coerce.string()
+})
+
+export const UpdateAdminUserRoleBody = zod.object({
+  "role": zod.enum(['admin', 'manager', 'employee'])
+})
+
+export const UpdateAdminUserRoleResponse = zod.object({
+  "clerkUserId": zod.string(),
+  "displayName": zod.string().nullable(),
+  "email": zod.string().nullable(),
+  "role": zod.enum(['admin', 'manager', 'employee']),
+  "mangoMemberId": zod.number().nullable(),
+  "mangoMemberName": zod.string().nullable(),
+  "createdAt": zod.coerce.date()
+})
+
+
+/**
  * Returns server health status
  * @summary Health check
  */
@@ -180,7 +235,8 @@ export const GetMangoKpiResponse = zod.object({
 
 
 /**
- * @summary Get Mango Office connection status for the combined dashboard (no auth — uses the stored Mango credentials)
+ * The dashboard uses ONE shared Mango connection (configured by admin/manager) for the whole team.
+ * @summary Get the shared Mango Office connection status for the combined dashboard
  */
 export const GetMoizvonkiMangoStatusResponse = zod.object({
   "isConnected": zod.boolean()
@@ -188,7 +244,8 @@ export const GetMoizvonkiMangoStatusResponse = zod.object({
 
 
 /**
- * @summary Fetch today's Mango Office calls and traffic for the combined dashboard (no auth)
+ * Scoped to the Mango operator the user claimed at onboarding (member_id).
+ * @summary Fetch today's Mango Office calls and traffic for the current user's claimed operator
  */
 export const getMoizvonkiMangoKpiResponseCallsMin = 0;
 
@@ -203,8 +260,66 @@ export const GetMoizvonkiMangoKpiResponse = zod.object({
 
 
 /**
+ * @summary List Mango Office operator names from the shared connection (for onboarding)
+ */
+export const GetMoizvonkiMangoOperatorsResponseItem = zod.object({
+  "memberId": zod.number(),
+  "memberName": zod.string()
+})
+export const GetMoizvonkiMangoOperatorsResponse = zod.array(GetMoizvonkiMangoOperatorsResponseItem)
+
+
+/**
+ * @summary Bind the current user to their Mango Office operator (chosen by name at first login)
+ */
+
+
+
+
+export const ClaimMoizvonkiOperatorBody = zod.object({
+  "mangoMemberId": zod.number().min(1),
+  "mangoMemberName": zod.string().min(1)
+})
+
+export const ClaimMoizvonkiOperatorResponse = zod.object({
+  "clerkUserId": zod.string(),
+  "displayName": zod.string().nullable(),
+  "email": zod.string().nullable(),
+  "role": zod.enum(['admin', 'manager', 'employee']),
+  "mangoMemberId": zod.number().nullable(),
+  "mangoMemberName": zod.string().nullable(),
+  "createdAt": zod.coerce.date()
+})
+
+
+/**
+ * @summary Team-wide Mango KPI for today — one row per operator plus totals (manager/admin only)
+ */
+export const getMoizvonkiTeamKpiResponseMembersItemCallsMin = 0;
+
+export const getMoizvonkiTeamKpiResponseMembersItemTrafficSecondsMin = 0;
+
+export const getMoizvonkiTeamKpiResponseTotalCallsMin = 0;
+
+export const getMoizvonkiTeamKpiResponseTotalTrafficSecondsMin = 0;
+
+
+
+export const GetMoizvonkiTeamKpiResponse = zod.object({
+  "members": zod.array(zod.object({
+  "memberId": zod.number(),
+  "memberName": zod.string(),
+  "calls": zod.number().min(getMoizvonkiTeamKpiResponseMembersItemCallsMin),
+  "trafficSeconds": zod.number().min(getMoizvonkiTeamKpiResponseMembersItemTrafficSecondsMin)
+})),
+  "totalCalls": zod.number().min(getMoizvonkiTeamKpiResponseTotalCallsMin),
+  "totalTrafficSeconds": zod.number().min(getMoizvonkiTeamKpiResponseTotalTrafficSecondsMin)
+})
+
+
+/**
  * Verifies credentials via headless-browser login before saving. May take up to ~60s.
- * @summary Store Mango Office login (email + password) for the combined dashboard
+ * @summary Store the shared Mango Office login (email + password) for the dashboard (manager/admin only)
  */
 
 
@@ -219,7 +334,7 @@ export const PutMoizvonkiMangoCredentialsResponse = zod.void()
 
 
 /**
- * @summary Remove the stored Mango Office credentials
+ * @summary Remove the shared Mango Office credentials (manager/admin only)
  */
 export const DeleteMoizvonkiMangoCredentialsResponse = zod.void()
 

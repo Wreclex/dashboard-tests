@@ -82,6 +82,62 @@ export interface MangoKpi {
   trafficSeconds: number;
 }
 
+export type TeamRole = typeof TeamRole[keyof typeof TeamRole];
+
+
+export const TeamRole = {
+  admin: 'admin',
+  manager: 'manager',
+  employee: 'employee',
+} as const;
+
+export interface TeamMember {
+  clerkUserId: string;
+  /** @nullable */
+  displayName: string | null;
+  /** @nullable */
+  email: string | null;
+  role: TeamRole;
+  /** @nullable */
+  mangoMemberId: number | null;
+  /** @nullable */
+  mangoMemberName: string | null;
+  createdAt: string;
+}
+
+export interface UpdateUserRoleBody {
+  role: TeamRole;
+}
+
+export interface MangoOperator {
+  memberId: number;
+  memberName: string;
+  /** @minimum 0 */
+  calls: number;
+  /** @minimum 0 */
+  trafficSeconds: number;
+}
+
+export interface MangoOperatorChoice {
+  memberId: number;
+  memberName: string;
+}
+
+export interface MangoTeamKpi {
+  members: MangoOperator[];
+  /** @minimum 0 */
+  totalCalls: number;
+  /** @minimum 0 */
+  totalTrafficSeconds: number;
+}
+
+export interface ClaimOperatorBody {
+  /** @minimum 1 */
+  mangoMemberId: number;
+  /** @minLength 1 */
+  mangoMemberName: string;
+}
+
 export interface ReportStateData {
   /** @minimum 0 */
   pzm: number;

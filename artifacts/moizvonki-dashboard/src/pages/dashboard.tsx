@@ -25,6 +25,7 @@ import { ru } from 'date-fns/locale';
 import { ConnectionSettings } from '../components/connection-settings';
 import { CsvUploadDialog } from '../components/csv-upload';
 import { MetricsChart } from '../components/metrics-chart';
+import { TeamView } from '../components/team-view';
 
 import {
   useGetMoizvonkiStatus,
@@ -40,6 +41,11 @@ import {
   getGetMoizvonkiMangoKpiQueryKey,
   getGetMoizvonkiSettingsQueryKey
 } from '@workspace/api-client-react';
+import type { TeamMember } from '@workspace/api-client-react';
+import { useClerk } from '@clerk/react';
+import { LogOut, Users, UserRound } from 'lucide-react';
+
+const basePath = import.meta.env.BASE_URL.replace(/\/$/, '');
 
 function formatDuration(seconds: number) {
   if (isNaN(seconds) || seconds < 0) return '0:00';
@@ -66,11 +72,14 @@ function SourceBadge({ source }: { source: string }) {
   return <Badge variant="outline">{source}</Badge>;
 }
 
-export default function DashboardPage() {
+export default function DashboardPage({ me }: { me: TeamMember }) {
   const { toast } = useToast();
   const queryClient = useQueryClient();
+  const { signOut } = useClerk();
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [settingsTab, setSettingsTab] = useState('mz');
+  const isManager = me.role === 'manager' || me.role === 'admin';
+  const [view, setView] = useState<'mine' | 'team'>(isManager ? 'team' : 'mine');
 
   const { data: settings } = useGetMoizvonkiSettings({ query: { queryKey: getGetMoizvonkiSettingsQueryKey() } });
 
@@ -202,17 +211,25 @@ export default function DashboardPage() {
                     <p className="text-xs text-muted-foreground">Живые данные</p>
                   </div>
                 </div>
-                <p className="text-sm text-muted-foreground line-clamp-2">
-                  Прямое подключение к Mango для мгновенного обновления KPI в течение дня.
-                </p>
-                <Button className="w-full bg-teal-50 text-teal-700 hover:bg-teal-100 border-teal-200" variant="outline" onClick={() => openSettings('mango')}>
-                  Подключить
-                </Button>
+                {isManager ? (
+                  <>
+                    <p className="text-sm text-muted-foreground line-clamp-2">
+                      Единое подключение для всей команды — живые KPI каждого сотрудника в течение дня.
+                    </p>
+                    <Button className="w-full bg-teal-50 text-teal-700 hover:bg-teal-100 border-teal-200" variant="outline" onClick={() => openSettings('mango')}>
+                      Подключить
+                    </Button>
+                  </>
+                ) : (
+                  <p className="text-sm text-muted-foreground">
+                    Общее подключение Mango настраивает руководитель или администратор — сотрудникам вводить данные Mango не нужно.
+                  </p>
+                )}
               </CardContent>
             </Card>
           </div>
         </div>
-        <ConnectionSettings open={settingsOpen} onOpenChange={setSettingsOpen} defaultTab={settingsTab} />
+        <ConnectionSettings open={settingsOpen} onOpenChange={setSettingsOpen} defaultTab={settingsTab} role={me.role} />
       </div>
     );
   }
@@ -236,7 +253,9 @@ export default function DashboardPage() {
             <div>
               <h1 className="font-semibold leading-none tracking-tight">Дашборд звонков</h1>
               <p className="text-[11px] text-muted-foreground mt-0.5 flex items-center gap-1">
-                Объединённая сводка
+                {me.mangoMemberName ?? me.displayName ?? me.email ?? 'Личный кабинет'}
+                <span className="text-muted-foreground/60">•</span>
+                {me.role === 'admin' ? 'Администратор' : me.role === 'manager' ? 'Руководитель' : 'Сотрудник'}
               </p>
             </div>
           </div>
@@ -265,11 +284,46 @@ export default function DashboardPage() {
             <Button variant="outline" size="icon" onClick={() => openSettings('settings')}>
               <Settings2 className="w-4 h-4 text-muted-foreground" />
             </Button>
+            <Button
+              variant="outline"
+              size="icon"
+              title="Выйти"
+              onClick={() => signOut({ redirectUrl: basePath || '/' })}
+            >
+              <LogOut className="w-4 h-4 text-muted-foreground" />
+            </Button>
           </div>
         </div>
       </header>
 
       <main className="max-w-6xl mx-auto px-4 sm:px-6 py-8 space-y-8">
+        {isManager && (
+          <div className="flex gap-2">
+            <Button
+              variant={view === 'team' ? 'default' : 'outline'}
+              size="sm"
+              className="gap-2"
+              onClick={() => setView('team')}
+            >
+              <Users className="w-4 h-4" />
+              Команда
+            </Button>
+            <Button
+              variant={view === 'mine' ? 'default' : 'outline'}
+              size="sm"
+              className="gap-2"
+              onClick={() => setView('mine')}
+            >
+              <UserRound className="w-4 h-4" />
+              Мои показатели
+            </Button>
+          </div>
+        )}
+
+        {isManager && view === 'team' ? (
+          <TeamView shiftHours={settings?.shiftHours ?? 9.5} />
+        ) : (
+        <>
         {/* Date and Summary */}
         <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-4">
           <div>
@@ -473,10 +527,12 @@ export default function DashboardPage() {
         </div>
 
         <MetricsChart />
+        </>
+        )}
 
       </main>
 
-      <ConnectionSettings open={settingsOpen} onOpenChange={setSettingsOpen} defaultTab={settingsTab} />
+      <ConnectionSettings open={settingsOpen} onOpenChange={setSettingsOpen} defaultTab={settingsTab} role={me.role} />
     </div>
   );
 }

@@ -21,8 +21,10 @@ import {
   MangoKpiUnavailableError,
   MangoTokenExpiredError,
   fetchMangoKpi,
+  fetchMangoTeamKpi,
   parseOperatorGroups,
   type MangoKpi,
+  type MangoMemberKpi,
 } from "./mangoKpiFormat.ts";
 import { db, mangoCredentials } from "@workspace/db";
 import { eq } from "drizzle-orm";
@@ -33,12 +35,13 @@ export {
   MangoKpiUnavailableError,
   MangoTokenExpiredError,
   fetchMangoKpi,
+  fetchMangoTeamKpi,
   formatMangoTraffic,
   parseOperatorGroups,
   todayMoscow,
   type FetchFn,
 } from "./mangoKpiFormat.ts";
-export type { MangoKpi } from "./mangoKpiFormat.ts";
+export type { MangoKpi, MangoMemberKpi } from "./mangoKpiFormat.ts";
 export { MangoAuthError } from "./mangoAuth.ts";
 export { mangoBrowserLogin } from "./mangoBrowser.ts";
 export type { MangoBrowserSession } from "./mangoBrowser.ts";
@@ -86,32 +89,49 @@ function isAscii(s: string): boolean {
   return !s.split("").some((c) => c.charCodeAt(0) > 127);
 }
 
+type MangoFetchMode =
+  | { kind: "single"; memberId?: number | null }
+  | { kind: "team" };
+
+type MangoFetchResult<M extends MangoFetchMode> = M extends { kind: "team" }
+  ? MangoMemberKpi[]
+  : MangoKpi;
+
 /**
- * Fetch today's call count + traffic from Mango CCC.
+ * Two-tier session driver shared by the single-operator and team KPI flows:
+ * cached RS256 jwt_token first, headless-browser re-login on rejection.
+ * `mode` picks the report shape (one operator vs the full member list).
  *
  * @throws MangoAuthError           — credentials rejected; user must re-enter
  * @throws MangoKpiUnavailableError — transient / infrastructure failures
  */
-export async function getMangoKpi(
+async function fetchWithMangoSession<M extends MangoFetchMode>(
   credential: MangoStoredCredential,
+  mode: M,
   opts?: { totalTimeoutMs?: number; userId?: string },
-): Promise<MangoKpi> {
+): Promise<MangoFetchResult<M>> {
   const started = Date.now();
   const remaining = () =>
     opts?.totalTimeoutMs ? Math.max(0, opts.totalTimeoutMs - (Date.now() - started)) : undefined;
+
+  const run = (jwt: string, groups: number[]): Promise<MangoFetchResult<M>> =>
+    mode.kind === "team"
+      ? (fetchMangoTeamKpi(jwt, groups, fetch, MANGO_RESULT_POLL_DELAY_MS, remaining()) as Promise<MangoFetchResult<M>>)
+      : (fetchMangoKpi(
+          jwt,
+          groups,
+          fetch,
+          MANGO_RESULT_POLL_DELAY_MS,
+          remaining(),
+          mode.memberId,
+        ) as Promise<MangoFetchResult<M>>);
 
   // ── 1. Cached RS256 jwt_token + operator groups ───────────────────────────
   const cachedJwt = decryptPlain(credential.authToken);
   const cachedGroups = parseOperatorGroups(credential.operatorGroups);
   if (cachedJwt && cachedGroups.length > 0 && isAscii(cachedJwt)) {
     try {
-      return await fetchMangoKpi(
-        cachedJwt,
-        cachedGroups,
-        fetch,
-        MANGO_RESULT_POLL_DELAY_MS,
-        remaining(),
-      );
+      return await run(cachedJwt, cachedGroups);
     } catch (err) {
       if (!(err instanceof MangoTokenExpiredError)) throw err;
     }
@@ -141,13 +161,7 @@ export async function getMangoKpi(
 
   await persistSession(opts?.userId, session);
   try {
-    return await fetchMangoKpi(
-      session.jwtToken,
-      session.operatorGroups,
-      fetch,
-      MANGO_RESULT_POLL_DELAY_MS,
-      remaining(),
-    );
+    return await run(session.jwtToken, session.operatorGroups);
   } catch (err) {
     // A freshly harvested session being rejected is an auth-class failure —
     // classify it so callers return 401 (re-login) instead of a generic 500.
@@ -156,4 +170,28 @@ export async function getMangoKpi(
     }
     throw err;
   }
+}
+
+/**
+ * Fetch today's call count + traffic from Mango CCC for one operator
+ * (defaults to the token's own member; pass opts.memberId to scope the
+ * shared dashboard connection to the requesting user's claimed operator).
+ */
+export async function getMangoKpi(
+  credential: MangoStoredCredential,
+  opts?: { totalTimeoutMs?: number; userId?: string; memberId?: number | null },
+): Promise<MangoKpi> {
+  return fetchWithMangoSession(credential, { kind: "single", memberId: opts?.memberId }, opts);
+}
+
+/**
+ * Fetch today's KPI for EVERY operator of the Mango groups (team view) from
+ * the shared dashboard connection. Fails explicitly when the operator list
+ * cannot be decoded — never returns an empty array silently.
+ */
+export async function getMangoTeamKpi(
+  credential: MangoStoredCredential,
+  opts?: { totalTimeoutMs?: number; userId?: string },
+): Promise<MangoMemberKpi[]> {
+  return fetchWithMangoSession(credential, { kind: "team" }, opts);
 }

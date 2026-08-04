@@ -118,6 +118,9 @@ export class MangoKpiUnavailableError extends Error {
 
 export type MangoKpi = { calls: number; trafficSeconds: number };
 
+/** One operator's KPI within the GroupId[] report (one row per member). */
+export type MangoMemberKpi = MangoKpi & { memberId: number; memberName: string };
+
 /** Injectable fetch function — allows unit tests to mock HTTP. */
 export type FetchFn = (url: string, init: RequestInit) => Promise<Response>;
 
@@ -228,6 +231,57 @@ export function parseMangoOperKpi2Response(
 
 /** Alias for backwards-compat. */
 export const parseMangoKpiPayload = parseMangoOperKpi2Response;
+
+/**
+ * Collect the candidate row collections from an oper-kpi2 result payload,
+ * in preference order: `data`, then `grouped`. Returns [] for the step-1
+ * handshake body ({ key: "…" } only) and non-object payloads.
+ */
+function candidateCollections(payload: unknown): MangoRow[][] {
+  if (!payload || typeof payload !== "object") return [];
+  if (Array.isArray(payload)) return [payload as MangoRow[]];
+  const p = payload as Record<string, unknown>;
+  if ("key" in p && !("data" in p) && !("grouped" in p)) return [];
+  const candidates: MangoRow[][] = [];
+  if (Array.isArray(p["data"])) candidates.push(p["data"] as MangoRow[]);
+  if (Array.isArray(p["grouped"])) candidates.push(p["grouped"] as MangoRow[]);
+  return candidates;
+}
+
+/**
+ * Parse a Mango `oper-kpi2/result` response into ONE ENTRY PER OPERATOR of
+ * the requested GroupId[] groups (the team view). Rows are matched by the
+ * same exact field names as the single-operator parser; rows without a
+ * numeric `member_id` are skipped. `member_name` carries the display name;
+ * falls back to the member id when absent.
+ *
+ * Returns null when no collection yields any valid row — callers must treat
+ * that as an explicit error, never as "the team made zero calls".
+ */
+export function parseMangoTeamRows(payload: unknown): MangoMemberKpi[] | null {
+  for (const candidate of candidateCollections(payload)) {
+    const byMember = new Map<number, MangoMemberKpi>();
+    for (const row of candidate) {
+      if (!row || typeof row !== "object") continue;
+      const memberId = toFiniteNumber(row["member_id"]);
+      if (memberId === null || !Number.isInteger(memberId) || memberId <= 0) continue;
+      const extracted = extractRow(row);
+      if (!extracted) continue;
+      const rawName = row["member_name"];
+      const memberName =
+        typeof rawName === "string" && rawName.trim() ? rawName.trim() : `Оператор ${memberId}`;
+      const existing = byMember.get(memberId);
+      if (existing) {
+        existing.calls += extracted.calls;
+        existing.trafficSeconds += extracted.trafficSeconds;
+      } else {
+        byMember.set(memberId, { memberId, memberName, ...extracted });
+      }
+    }
+    if (byMember.size > 0) return [...byMember.values()];
+  }
+  return null;
+}
 
 /**
  * Extract the report key from a step-1 handshake response.
@@ -346,19 +400,19 @@ function buildFormBody(
  * Throws MangoKpiUnavailableError on network errors, unexpected shapes, or
  * when the result is not available within the polling budget.
  */
-export async function fetchMangoKpi(
+/**
+ * Shared two-step oper-kpi2 protocol driver. `tryParse` decides whether a
+ * payload carries the rows the caller wants (single-operator scoped KPI or
+ * the full per-member team list) and returns null to keep polling.
+ */
+async function fetchMangoReport<T>(
   rawToken: string,
   operatorGroups: number[],
-  fetchFn: FetchFn = fetch,
-  pollDelayMs = MANGO_RESULT_POLL_DELAY_MS,
-  /**
-   * Hard wall-clock cap (ms) for the *entire* operation (handshake + all polls
-   * combined).  Each individual fetch gets `min(MANGO_TIMEOUT_MS, remaining)`
-   * as its AbortSignal, so even a single stalling request cannot push the
-   * operation past this budget.  When omitted no operation-wide cap applies.
-   */
-  totalTimeoutMs?: number,
-): Promise<MangoKpi> {
+  fetchFn: FetchFn,
+  pollDelayMs: number,
+  totalTimeoutMs: number | undefined,
+  tryParse: (payload: unknown) => T | null,
+): Promise<T> {
   const trimmed = rawToken.trim();
   if (!trimmed) throw new MangoKpiUnavailableError("Mango Office token is empty");
   const groups = operatorGroups.filter((g) => Number.isFinite(g) && g > 0);
@@ -402,19 +456,6 @@ export async function fetchMangoKpi(
 
   const handshakeBody = buildFormBody(trimmed, groups);
 
-  // Scope the report to the current operator: the GroupId[] report returns
-  // one row per member of the groups — summing all rows would add colleagues'
-  // calls/traffic (verified live: 873 rows, user's own row was zero while
-  // the unfiltered sum was 8+ minutes of colleagues' outbound calls).
-  // Fail CLOSED when the member id cannot be decoded: an undecodable token
-  // is broken, not a license to aggregate every group member.
-  const memberId = decodeMangoMemberId(trimmed);
-  if (memberId === null) {
-    throw new MangoKpiUnavailableError(
-      "Mango jwt_token does not contain a decodable member_id — re-connect Mango Office",
-    );
-  }
-
   // ── Step 1: POST to oper-kpi2 ─────────────────────────────────────────────
   let hsRes: Response;
   try {
@@ -453,7 +494,7 @@ export async function fetchMangoKpi(
   }
 
   // Optimistic path: a direct/synchronous Mango deployment may include data.
-  const direct = parseMangoOperKpi2Response(hsPayload, memberId);
+  const direct = tryParse(hsPayload);
   if (direct) return direct;
 
   const key = extractReportKey(hsPayload);
@@ -527,8 +568,8 @@ export async function fetchMangoKpi(
       continue;
     }
 
-    const kpi = parseMangoOperKpi2Response(resPayload, memberId);
-    if (kpi) return kpi;
+    const parsed = tryParse(resPayload);
+    if (parsed) return parsed;
     // Auth failure encoded in a 200 body — bail to the refresh/re-login tier
     // instead of polling until the generic "not available" error.
     throwIfMangoAuthBody(resPayload);
@@ -537,5 +578,81 @@ export async function fetchMangoKpi(
 
   throw new MangoKpiUnavailableError(
     `Mango report result not available after ${MANGO_RESULT_POLL_ATTEMPTS} attempts`,
+  );
+}
+
+/**
+ * Fetch today's Mango CCC KPI using the RS256 `jwt_token` harvested from the
+ * CCC session's localStorage (via headless login or manual paste).
+ *
+ * The `fetchFn` parameter is injectable for unit tests (pass `fetch` in prod).
+ *
+ * Throws MangoTokenExpiredError on 401 / 403 from either step.
+ * Throws MangoKpiUnavailableError on network errors, unexpected shapes, or
+ * when the result is not available within the polling budget.
+ */
+export async function fetchMangoKpi(
+  rawToken: string,
+  operatorGroups: number[],
+  fetchFn: FetchFn = fetch,
+  pollDelayMs = MANGO_RESULT_POLL_DELAY_MS,
+  /**
+   * Hard wall-clock cap (ms) for the *entire* operation (handshake + all polls
+   * combined).  Each individual fetch gets `min(MANGO_TIMEOUT_MS, remaining)`
+   * as its AbortSignal, so even a single stalling request cannot push the
+   * operation past this budget.  When omitted no operation-wide cap applies.
+   */
+  totalTimeoutMs?: number,
+  /**
+   * Scope the result to this operator instead of the token's own member_id —
+   * used by the multi-user dashboard where the SHARED Mango connection's
+   * token belongs to a different person than the requesting user.
+   */
+  memberIdOverride?: number | null,
+): Promise<MangoKpi> {
+  // Scope the report to one operator: the GroupId[] report returns one row
+  // per member of the groups — summing all rows would add colleagues'
+  // calls/traffic (verified live: 873 rows, user's own row was zero while
+  // the unfiltered sum was 8+ minutes of colleagues' outbound calls).
+  // Fail CLOSED when the member id cannot be determined: an undecodable
+  // token is broken, not a license to aggregate every group member.
+  const memberId = memberIdOverride ?? decodeMangoMemberId(rawToken.trim());
+  if (memberId === null) {
+    throw new MangoKpiUnavailableError(
+      "Mango jwt_token does not contain a decodable member_id — re-connect Mango Office",
+    );
+  }
+  return fetchMangoReport(
+    rawToken,
+    operatorGroups,
+    fetchFn,
+    pollDelayMs,
+    totalTimeoutMs,
+    (payload) => parseMangoOperKpi2Response(payload, memberId),
+  );
+}
+
+/**
+ * Fetch today's KPI for EVERY operator of the GroupId[] groups (team view).
+ * Same two-step protocol as fetchMangoKpi, but returns the full per-member
+ * list instead of scoping to one operator.
+ *
+ * Throws MangoKpiUnavailableError when the operator rows cannot be decoded —
+ * the team endpoint must fail explicitly, never return an empty list.
+ */
+export async function fetchMangoTeamKpi(
+  rawToken: string,
+  operatorGroups: number[],
+  fetchFn: FetchFn = fetch,
+  pollDelayMs = MANGO_RESULT_POLL_DELAY_MS,
+  totalTimeoutMs?: number,
+): Promise<MangoMemberKpi[]> {
+  return fetchMangoReport(
+    rawToken,
+    operatorGroups,
+    fetchFn,
+    pollDelayMs,
+    totalTimeoutMs,
+    parseMangoTeamRows,
   );
 }

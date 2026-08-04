@@ -1,0 +1,175 @@
+import { useMemo, useState } from 'react';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
+import { Badge } from '@/components/ui/badge';
+import { Checkbox } from '@/components/ui/checkbox';
+import { RefreshCw, AlertCircle, PhoneCall, Clock, Users, Activity } from 'lucide-react';
+import {
+  useGetMoizvonkiTeamKpi,
+  getGetMoizvonkiTeamKpiQueryKey,
+} from '@workspace/api-client-react';
+import type { MangoOperator } from '@workspace/api-client-react';
+
+function formatDuration(seconds: number) {
+  if (isNaN(seconds) || seconds < 0) return '0:00';
+  const h = Math.floor(seconds / 3600);
+  const m = Math.floor((seconds % 3600) / 60);
+  const s = seconds % 60;
+  if (h > 0) return `${h}:${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
+  return `${m}:${s.toString().padStart(2, '0')}`;
+}
+
+/**
+ * Manager/admin team summary: one row per operator from the shared Mango
+ * connection, with a multiselect filter — totals are recomputed over the
+ * selected employees only.
+ */
+export function TeamView({ shiftHours }: { shiftHours: number }) {
+  const [selected, setSelected] = useState<Set<number> | null>(null); // null = all
+
+  const { data, isLoading, error, isFetching, refetch } = useGetMoizvonkiTeamKpi({
+    query: { queryKey: getGetMoizvonkiTeamKpiQueryKey(), retry: false, staleTime: 5 * 60 * 1000 },
+  });
+
+  const members: MangoOperator[] = useMemo(() => data?.members ?? [], [data]);
+
+  const visible = useMemo(
+    () => (selected === null ? members : members.filter((m) => selected.has(m.memberId))),
+    [members, selected],
+  );
+
+  const totals = useMemo(
+    () => ({
+      calls: visible.reduce((s, m) => s + m.calls, 0),
+      traffic: visible.reduce((s, m) => s + m.trafficSeconds, 0),
+    }),
+    [visible],
+  );
+  const density = shiftHours > 0 && visible.length > 0 ? totals.calls / shiftHours : 0;
+
+  const toggle = (memberId: number) => {
+    setSelected((prev) => {
+      const next = new Set(prev === null ? members.map((m) => m.memberId) : prev);
+      if (next.has(memberId)) next.delete(memberId);
+      else next.add(memberId);
+      return next;
+    });
+  };
+
+  const isChecked = (memberId: number) => selected === null || selected.has(memberId);
+  const errorStatus = (error as any)?.response?.status;
+
+  return (
+    <div className="space-y-6">
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-2">
+          <Users className="w-5 h-5 text-primary" />
+          <h3 className="text-lg font-semibold tracking-tight">Команда сегодня</h3>
+          {selected !== null && (
+            <Badge variant="secondary" className="font-medium">
+              Выбрано: {visible.length} из {members.length}
+            </Badge>
+          )}
+        </div>
+        <div className="flex items-center gap-2">
+          {selected !== null && (
+            <Button variant="ghost" size="sm" onClick={() => setSelected(null)}>
+              Сбросить фильтр
+            </Button>
+          )}
+          <Button variant="outline" size="sm" className="gap-2" onClick={() => refetch()} disabled={isFetching}>
+            <RefreshCw className={`w-4 h-4 ${isFetching ? 'animate-spin' : ''}`} />
+            Обновить
+          </Button>
+        </div>
+      </div>
+
+      {isLoading ? (
+        <div className="py-16 flex flex-col items-center gap-3 text-muted-foreground">
+          <RefreshCw className="w-6 h-6 animate-spin" />
+          <p className="text-sm">Загружаем показатели команды из Mango...</p>
+        </div>
+      ) : error ? (
+        <Card className="border-destructive/30">
+          <CardContent className="py-10 flex flex-col items-center gap-3 text-center">
+            <AlertCircle className="w-6 h-6 text-destructive" />
+            <p className="text-sm text-muted-foreground max-w-md">
+              {errorStatus === 404
+                ? 'Общее подключение Mango не настроено. Подключите Mango Office в настройках.'
+                : errorStatus === 401
+                  ? 'Сессия Mango истекла — обновите подключение в настройках.'
+                  : 'Не удалось получить показатели команды из Mango Office.'}
+            </p>
+            <Button variant="outline" size="sm" onClick={() => refetch()}>Повторить</Button>
+          </CardContent>
+        </Card>
+      ) : (
+        <>
+          {/* Totals over the selected employees */}
+          <div className="grid gap-4 md:grid-cols-3">
+            <Card className="border-l-4 border-l-chart-3 bg-[hsl(var(--chart-3))]/5">
+              <CardHeader className="flex flex-row items-center justify-between pb-2">
+                <CardTitle className="text-sm font-medium text-[hsl(var(--chart-3))]">Звонков всего</CardTitle>
+                <div className="w-8 h-8 rounded-full bg-[hsl(var(--chart-3))]/20 flex items-center justify-center">
+                  <PhoneCall className="w-4 h-4 text-[hsl(var(--chart-3))]" />
+                </div>
+              </CardHeader>
+              <CardContent>
+                <div className="text-3xl font-bold font-mono tracking-tight">{totals.calls}</div>
+                <p className="text-xs text-muted-foreground mt-1 font-medium">
+                  {visible.length} сотрудн.
+                </p>
+              </CardContent>
+            </Card>
+            <Card className="border-l-4 border-l-primary bg-primary/5">
+              <CardHeader className="flex flex-row items-center justify-between pb-2">
+                <CardTitle className="text-sm font-medium text-primary">Трафик всего</CardTitle>
+                <div className="w-8 h-8 rounded-full bg-primary/20 flex items-center justify-center">
+                  <Clock className="w-4 h-4 text-primary" />
+                </div>
+              </CardHeader>
+              <CardContent>
+                <div className="text-3xl font-bold font-mono tracking-tight">{formatDuration(totals.traffic)}</div>
+                <p className="text-xs text-muted-foreground mt-1 font-medium">Суммарно по выбранным</p>
+              </CardContent>
+            </Card>
+            <Card className="border-l-4 border-l-chart-2 bg-[hsl(var(--chart-2))]/5">
+              <CardHeader className="flex flex-row items-center justify-between pb-2">
+                <CardTitle className="text-sm font-medium text-[hsl(var(--chart-2))]">Плотность</CardTitle>
+                <div className="w-8 h-8 rounded-full bg-[hsl(var(--chart-2))]/20 flex items-center justify-center">
+                  <Activity className="w-4 h-4 text-[hsl(var(--chart-2))]" />
+                </div>
+              </CardHeader>
+              <CardContent>
+                <div className="text-3xl font-bold font-mono tracking-tight">{density.toFixed(2)}</div>
+                <p className="text-xs text-muted-foreground mt-1 font-medium">Звонков/час на сотрудника</p>
+              </CardContent>
+            </Card>
+          </div>
+
+          {/* Per-employee table with multiselect */}
+          <Card>
+            <CardContent className="p-0">
+              <ul className="divide-y">
+                {members.map((m) => (
+                  <li key={m.memberId}>
+                    <label className="flex items-center gap-3 px-4 py-3 cursor-pointer hover:bg-muted/40 transition-colors">
+                      <Checkbox checked={isChecked(m.memberId)} onCheckedChange={() => toggle(m.memberId)} />
+                      <span className="flex-1 font-medium text-sm">{m.memberName}</span>
+                      <span className="font-mono text-sm tabular-nums text-muted-foreground w-20 text-right">
+                        {m.calls} зв.
+                      </span>
+                      <span className="font-mono text-sm tabular-nums w-24 text-right">
+                        {formatDuration(m.trafficSeconds)}
+                      </span>
+                    </label>
+                  </li>
+                ))}
+              </ul>
+            </CardContent>
+          </Card>
+        </>
+      )}
+    </div>
+  );
+}

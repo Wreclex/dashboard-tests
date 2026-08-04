@@ -425,6 +425,13 @@ importers:
         version: 3.25.76
 
   artifacts/moizvonki-dashboard:
+    dependencies:
+      '@clerk/react':
+        specifier: ^6.12.10
+        version: 6.12.10(react-dom@19.1.0(react@19.1.0))(react@19.1.0)
+      '@clerk/themes':
+        specifier: ^2.4.57
+        version: 2.4.57(react-dom@19.1.0(react@19.1.0))(react@19.1.0)
     devDependencies:
       '@hookform/resolvers':
         specifier: ^3.10.0

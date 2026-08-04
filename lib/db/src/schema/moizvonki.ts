@@ -1,8 +1,9 @@
-import { pgTable, text, timestamp, integer, real } from "drizzle-orm/pg-core";
+import { pgTable, text, timestamp, integer, real, primaryKey } from "drizzle-orm/pg-core";
 
 /**
- * Single-row connection config for the «Мои Звонки» dashboard (standalone app,
- * no auth — one fixed row with id "default").
+ * Per-user connection config for the «Мои Звонки» dashboard — the row id is
+ * the owner's Clerk user id (the legacy single-user row used id "default" and
+ * is claimed by the first admin on registration).
  *
  * Two collection paths, mirroring the Mango two-tier approach:
  *  - Variant A: replay of the internal report HTTP request (cookies + URL
@@ -32,19 +33,28 @@ export const moizvonkiConnections = pgTable("moizvonki_connections", {
 
 export type MoizvonkiConnection = typeof moizvonkiConnections.$inferSelect;
 
-/** One metrics point per day. date is ISO YYYY-MM-DD (sortable). */
-export const moizvonkiMetrics = pgTable("moizvonki_metrics", {
-  date: text("date").primaryKey(),
-  calls: integer("calls").notNull(),
-  trafficSeconds: integer("traffic_seconds").notNull(),
-  /** "http" | "browser" | "csv" */
-  source: text("source").notNull(),
-  updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
-});
+/**
+ * One metrics point per user per day. date is ISO YYYY-MM-DD (sortable).
+ * userId is the owner's Clerk user id (legacy rows carry "default" until the
+ * first admin claims them).
+ */
+export const moizvonkiMetrics = pgTable(
+  "moizvonki_metrics",
+  {
+    userId: text("user_id").notNull().default("default"),
+    date: text("date").notNull(),
+    calls: integer("calls").notNull(),
+    trafficSeconds: integer("traffic_seconds").notNull(),
+    /** "http" | "browser" | "csv" */
+    source: text("source").notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
+  },
+  (table) => [primaryKey({ columns: [table.userId, table.date] })],
+);
 
 export type MoizvonkiMetric = typeof moizvonkiMetrics.$inferSelect;
 
-/** Single-row dashboard settings (shift duration for density, refresh interval). */
+/** Per-user dashboard settings (row id = Clerk user id; shift duration for density, refresh interval). */
 export const moizvonkiSettings = pgTable("moizvonki_settings", {
   id: text("id").primaryKey(),
   shiftHours: real("shift_hours").notNull().default(9.5),

@@ -49,23 +49,26 @@ const settingsSchema = z.object({
   refreshIntervalMinutes: z.coerce.number().min(1).max(240),
 });
 
-export function ConnectionSettings({ 
-  open, 
+export function ConnectionSettings({
+  open,
   onOpenChange,
-  defaultTab = 'mz'
-}: { 
-  open?: boolean; 
+  defaultTab = 'mz',
+  role = 'employee'
+}: {
+  open?: boolean;
   onOpenChange?: (open: boolean) => void;
   defaultTab?: string;
+  role?: 'admin' | 'manager' | 'employee';
 }) {
   const { toast } = useToast();
   const queryClient = useQueryClient();
+  const canManageMango = role === 'admin' || role === 'manager';
   const [activeTab, setActiveTab] = useState(defaultTab);
 
-  // Sync tab when prop changes
+  // Sync tab when prop changes (never land an employee on the Mango tab)
   useEffect(() => {
-    if (open) setActiveTab(defaultTab);
-  }, [open, defaultTab]);
+    if (open) setActiveTab(defaultTab === 'mango' && !canManageMango ? 'mz' : defaultTab);
+  }, [open, defaultTab, canManageMango]);
 
   const { data: statusMz, isLoading: statusMzLoading } = useGetMoizvonkiStatus({ query: { queryKey: getGetMoizvonkiStatusQueryKey() } });
   const { data: statusMango, isLoading: statusMangoLoading } = useGetMoizvonkiMangoStatus({ query: { queryKey: getGetMoizvonkiMangoStatusQueryKey() } });
@@ -188,9 +191,11 @@ export function ConnectionSettings({
         </DialogHeader>
 
         <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full mt-2">
-          <TabsList className="grid w-full grid-cols-3">
+          <TabsList className={`grid w-full ${canManageMango ? 'grid-cols-3' : 'grid-cols-2'}`}>
             <TabsTrigger value="mz" className="gap-1.5"><Phone className="w-4 h-4" /> Мои Звонки</TabsTrigger>
-            <TabsTrigger value="mango" className="gap-1.5"><Phone className="w-4 h-4 text-teal-600" /> Mango</TabsTrigger>
+            {canManageMango && (
+              <TabsTrigger value="mango" className="gap-1.5"><Phone className="w-4 h-4 text-teal-600" /> Mango</TabsTrigger>
+            )}
             <TabsTrigger value="settings" className="gap-1.5"><Settings className="w-4 h-4" /> Общие</TabsTrigger>
           </TabsList>
           
@@ -308,7 +313,8 @@ export function ConnectionSettings({
               )}
             </TabsContent>
 
-            {/* Mango Office */}
+            {/* Mango Office — shared connection, manager/admin only */}
+            {canManageMango && (
             <TabsContent value="mango" className="m-0 space-y-4">
               {statusMangoLoading ? (
                 <div className="flex justify-center p-4"><RefreshCw className="w-6 h-6 animate-spin text-muted-foreground" /></div>
@@ -380,6 +386,7 @@ export function ConnectionSettings({
                 </>
               )}
             </TabsContent>
+            )}
 
             {/* Общие настройки */}
             <TabsContent value="settings" className="m-0 pt-2">

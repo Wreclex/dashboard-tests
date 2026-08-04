@@ -1,4 +1,4 @@
-import { ClerkProvider } from '@clerk/react';
+import { ClerkProvider, Show } from '@clerk/react';
 import ClerkTokenProvider from '@/components/ClerkTokenProvider';
 import { publishableKeyFromHost } from '@clerk/react/internal';
 import { dark } from '@clerk/themes';
@@ -77,6 +77,20 @@ const clerkAppearance = {
   },
 };
 
+// The app requires a signed-in user — signed-out visitors get the sign-in screen.
+function Home() {
+  return (
+    <>
+      <Show when="signed-in">
+        <MainApp />
+      </Show>
+      <Show when="signed-out">
+        <SignInPage />
+      </Show>
+    </>
+  );
+}
+
 function ClerkProviderWithRoutes() {
   const [, setLocation] = useLocation();
 
@@ -93,7 +107,7 @@ function ClerkProviderWithRoutes() {
       <QueryClientProvider client={queryClient}>
         <ClerkTokenProvider />
         <Switch>
-          <Route path="/" component={MainApp} />
+          <Route path="/" component={Home} />
           {/* REQUIRED — /*? optional wildcard matches Clerk's OAuth sub-paths */}
           <Route path="/sign-in/*?" component={SignInPage} />
           <Route path="/sign-up/*?" component={SignUpPage} />

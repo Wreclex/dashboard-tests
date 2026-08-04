@@ -26,9 +26,6 @@ export { MoizvonkiAuthError, MoizvonkiUnavailableError } from "./moizvonkiBrowse
 export { MoizvonkiCsvError, parseMoizvonkiCsv } from "./moizvonkiCsv.ts";
 export { MoizvonkiParseError } from "./moizvonkiParse.ts";
 
-export const CONNECTION_ID = "default";
-export const SETTINGS_ID = "default";
-
 /** Today in Moscow as ISO YYYY-MM-DD (the ЛК reports in Moscow time). */
 export function todayMoscowIso(): string {
   return new Intl.DateTimeFormat("en-CA", {
@@ -53,11 +50,11 @@ export function displayToIso(display: string): string | null {
   return `${y}-${mo.padStart(2, "0")}-${d.padStart(2, "0")}`;
 }
 
-export async function getSettings(): Promise<{ shiftHours: number; refreshIntervalMinutes: number }> {
+export async function getSettings(userId: string): Promise<{ shiftHours: number; refreshIntervalMinutes: number }> {
   const [row] = await db
     .select()
     .from(moizvonkiSettings)
-    .where(eq(moizvonkiSettings.id, SETTINGS_ID))
+    .where(eq(moizvonkiSettings.id, userId))
     .limit(1);
   return row
     ? { shiftHours: row.shiftHours, refreshIntervalMinutes: row.refreshIntervalMinutes }
@@ -66,15 +63,16 @@ export async function getSettings(): Promise<{ shiftHours: number; refreshInterv
 
 /** Persist a metrics point and record the success on the connection row. */
 export async function storeMetrics(
+  userId: string,
   dateIso: string,
   metrics: RawMetrics,
   source: "http" | "browser" | "csv",
 ): Promise<void> {
   await db
     .insert(moizvonkiMetrics)
-    .values({ date: dateIso, calls: metrics.calls, trafficSeconds: metrics.trafficSeconds, source })
+    .values({ userId, date: dateIso, calls: metrics.calls, trafficSeconds: metrics.trafficSeconds, source })
     .onConflictDoUpdate({
-      target: moizvonkiMetrics.date,
+      target: [moizvonkiMetrics.userId, moizvonkiMetrics.date],
       set: {
         calls: metrics.calls,
         trafficSeconds: metrics.trafficSeconds,
@@ -85,17 +83,17 @@ export async function storeMetrics(
 
   await db
     .insert(moizvonkiConnections)
-    .values({ id: CONNECTION_ID, lastFetchAt: new Date(), lastError: null, lastSource: source })
+    .values({ id: userId, lastFetchAt: new Date(), lastError: null, lastSource: source })
     .onConflictDoUpdate({
       target: moizvonkiConnections.id,
       set: { lastFetchAt: new Date(), lastError: null, lastSource: source, updatedAt: new Date() },
     });
 }
 
-export async function recordError(message: string): Promise<void> {
+export async function recordError(userId: string, message: string): Promise<void> {
   await db
     .insert(moizvonkiConnections)
-    .values({ id: CONNECTION_ID, lastError: message.slice(0, 500) })
+    .values({ id: userId, lastError: message.slice(0, 500) })
     .onConflictDoUpdate({
       target: moizvonkiConnections.id,
       set: { lastError: message.slice(0, 500), updatedAt: new Date() },
@@ -154,11 +152,11 @@ async function collectViaHttp(cookies: string, reportUrl: string, extraHeaders: 
  * @throws MoizvonkiAuthError        — re-configuration required (401)
  * @throws MoizvonkiUnavailableError — transient / infrastructure failure (502)
  */
-export async function refreshMoizvonki(): Promise<RawMetrics & { source: "http" | "browser" }> {
+export async function refreshMoizvonki(userId: string): Promise<RawMetrics & { source: "http" | "browser" }> {
   const [conn] = await db
     .select()
     .from(moizvonkiConnections)
-    .where(eq(moizvonkiConnections.id, CONNECTION_ID))
+    .where(eq(moizvonkiConnections.id, userId))
     .limit(1);
 
   const cookies = conn?.cookies ? decryptToken(conn.cookies).trim() : "";
@@ -177,13 +175,13 @@ export async function refreshMoizvonki(): Promise<RawMetrics & { source: "http" 
   if (cookies && reportUrl) {
     try {
       const metrics = await collectViaHttp(cookies, reportUrl, extraHeaders);
-      await storeMetrics(todayMoscowIso(), metrics, "http");
+      await storeMetrics(userId, todayMoscowIso(), metrics, "http");
       return { ...metrics, source: "http" };
     } catch (err) {
       if (err instanceof MoizvonkiUnavailableError || !login) {
         // No credentials to fall back to — surface the original failure.
         if (!(err instanceof MoizvonkiAuthError) || !login) {
-          await recordError(err instanceof Error ? err.message : String(err));
+          await recordError(userId, err instanceof Error ? err.message : String(err));
           throw err;
         }
       }
@@ -194,13 +192,13 @@ export async function refreshMoizvonki(): Promise<RawMetrics & { source: "http" 
   // ── Tier 2: headless browser ──────────────────────────────────────────────
   if (!login || !password) {
     const msg = "Сессия истекла, а логин/пароль не заданы — обновите cookies или добавьте логин/пароль";
-    await recordError(msg);
+    await recordError(userId, msg);
     throw new MoizvonkiAuthError(msg);
   }
 
   try {
     const result = await collectViaBrowser(login, password);
-    await storeMetrics(todayMoscowIso(), result, "browser");
+    await storeMetrics(userId, todayMoscowIso(), result, "browser");
 
     // Harvest the session back into the connection row for fast future runs.
     const set: Record<string, unknown> = { updatedAt: new Date() };
@@ -210,12 +208,12 @@ export async function refreshMoizvonki(): Promise<RawMetrics & { source: "http" 
       await db
         .update(moizvonkiConnections)
         .set(set)
-        .where(eq(moizvonkiConnections.id, CONNECTION_ID))
+        .where(eq(moizvonkiConnections.id, userId))
         .catch(() => {});
     }
     return { ...result, source: "browser" };
   } catch (err) {
-    await recordError(err instanceof Error ? err.message : String(err));
+    await recordError(userId, err instanceof Error ? err.message : String(err));
     throw err;
   }
 }

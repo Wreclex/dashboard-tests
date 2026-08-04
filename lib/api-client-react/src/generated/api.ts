@@ -23,11 +23,14 @@ import type {
   AutoReportSchedule,
   AutoReportScheduleInput,
   AutoReportScheduleUpdate,
+  ClaimOperatorBody,
   GetSheetCountsParams,
   HealthStatus,
   MangoCredentialsInput,
   MangoKpi,
+  MangoOperatorChoice,
   MangoStatus,
+  MangoTeamKpi,
   MangoTokenInput,
   MoizvonkiCredentialsInput,
   MoizvonkiCsvInput,
@@ -38,11 +41,13 @@ import type {
   MoizvonkiSettingsInput,
   MoizvonkiStatus,
   SheetCounts,
+  TeamMember,
   TelegramChannel,
   TelegramChannelInput,
   TelegramChannelUpdate,
   TelegramSendInput,
   TelegramSendResult,
+  UpdateUserRoleBody,
   UserReportStateInput
 } from './api.schemas';
 
@@ -72,6 +77,236 @@ const withQueryKey = <T extends object, K>(query: T, queryKey: K): T & { queryKe
   }
   return result;
 };
+
+export const getGetMeUrl = () => {
+
+
+
+
+  return `/api/me`
+}
+
+/**
+ * Registers the user on first call (default role "employee"; the very
+ * first registered user becomes "admin" and claims the legacy
+ * single-user dashboard data). Shared by both apps.
+ * @summary Get the authenticated user's profile and role
+ */
+export const getMe = async ( options?: Parameters<typeof customFetch>[1]): Promise<TeamMember> => {
+
+  return customFetch<TeamMember>(getGetMeUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetMeQueryKey = () => {
+    return [
+    `/api/me`
+    ] as const;
+    }
+
+
+export const getGetMeQueryOptions = <TData = Awaited<ReturnType<typeof getMe>>, TError = ErrorType<void>>( options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getMe>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetMeQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getMe>>> = ({ signal }) => getMe({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getMe>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetMeQueryResult = NonNullable<Awaited<ReturnType<typeof getMe>>>
+export type GetMeQueryError = ErrorType<void>
+
+
+/**
+ * @summary Get the authenticated user's profile and role
+ */
+
+export function useGetMe<TData = Awaited<ReturnType<typeof getMe>>, TError = ErrorType<void>>(
+  options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getMe>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetMeQueryOptions(options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getListAdminUsersUrl = () => {
+
+
+
+
+  return `/api/admin/users`
+}
+
+/**
+ * @summary List all registered users (admin only)
+ */
+export const listAdminUsers = async ( options?: Parameters<typeof customFetch>[1]): Promise<TeamMember[]> => {
+
+  return customFetch<TeamMember[]>(getListAdminUsersUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getListAdminUsersQueryKey = () => {
+    return [
+    `/api/admin/users`
+    ] as const;
+    }
+
+
+export const getListAdminUsersQueryOptions = <TData = Awaited<ReturnType<typeof listAdminUsers>>, TError = ErrorType<void>>( options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listAdminUsers>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getListAdminUsersQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listAdminUsers>>> = ({ signal }) => listAdminUsers({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listAdminUsers>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type ListAdminUsersQueryResult = NonNullable<Awaited<ReturnType<typeof listAdminUsers>>>
+export type ListAdminUsersQueryError = ErrorType<void>
+
+
+/**
+ * @summary List all registered users (admin only)
+ */
+
+export function useListAdminUsers<TData = Awaited<ReturnType<typeof listAdminUsers>>, TError = ErrorType<void>>(
+  options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listAdminUsers>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getListAdminUsersQueryOptions(options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getUpdateAdminUserRoleUrl = (clerkUserId: string,) => {
+
+
+
+
+  return `/api/admin/users/${clerkUserId}`
+}
+
+/**
+ * An administrator cannot change their own role.
+ * @summary Change a user's role (admin only)
+ */
+export const updateAdminUserRole = async (clerkUserId: string,
+    updateUserRoleBody: UpdateUserRoleBody, options?: Parameters<typeof customFetch>[1]): Promise<TeamMember> => {
+
+  return customFetch<TeamMember>(getUpdateAdminUserRoleUrl(clerkUserId),
+  {
+    ...options,
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(updateUserRoleBody)
+  }
+);}
+
+
+
+
+
+export const getUpdateAdminUserRoleMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateAdminUserRole>>, TError,{clerkUserId: string;data: BodyType<UpdateUserRoleBody>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof updateAdminUserRole>>, TError,{clerkUserId: string;data: BodyType<UpdateUserRoleBody>}, TContext> => {
+
+const mutationKey = ['updateAdminUserRole'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof updateAdminUserRole>>, {clerkUserId: string;data: BodyType<UpdateUserRoleBody>}> = (props) => {
+          const {clerkUserId,data} = props ?? {};
+
+          return  updateAdminUserRole(clerkUserId,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type UpdateAdminUserRoleMutationResult = NonNullable<Awaited<ReturnType<typeof updateAdminUserRole>>>
+    export type UpdateAdminUserRoleMutationBody = BodyType<UpdateUserRoleBody>
+    export type UpdateAdminUserRoleMutationError = ErrorType<void>
+
+    /**
+ * @summary Change a user's role (admin only)
+ */
+export const useUpdateAdminUserRole = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateAdminUserRole>>, TError,{clerkUserId: string;data: BodyType<UpdateUserRoleBody>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof updateAdminUserRole>>,
+        TError,
+        {clerkUserId: string;data: BodyType<UpdateUserRoleBody>},
+        TContext
+      > => {
+      return useMutation(getUpdateAdminUserRoleMutationOptions(options));
+    }
 
 export const getHealthCheckUrl = () => {
 
@@ -974,7 +1209,8 @@ export const getGetMoizvonkiMangoStatusUrl = () => {
 }
 
 /**
- * @summary Get Mango Office connection status for the combined dashboard (no auth — uses the stored Mango credentials)
+ * The dashboard uses ONE shared Mango connection (configured by admin/manager) for the whole team.
+ * @summary Get the shared Mango Office connection status for the combined dashboard
  */
 export const getMoizvonkiMangoStatus = async ( options?: Parameters<typeof customFetch>[1]): Promise<MangoStatus> => {
 
@@ -998,7 +1234,7 @@ export const getGetMoizvonkiMangoStatusQueryKey = () => {
     }
 
 
-export const getGetMoizvonkiMangoStatusQueryOptions = <TData = Awaited<ReturnType<typeof getMoizvonkiMangoStatus>>, TError = ErrorType<unknown>>( options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getMoizvonkiMangoStatus>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+export const getGetMoizvonkiMangoStatusQueryOptions = <TData = Awaited<ReturnType<typeof getMoizvonkiMangoStatus>>, TError = ErrorType<void>>( options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getMoizvonkiMangoStatus>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
 ) => {
 
 const {query: queryOptions, request: requestOptions} = options ?? {};
@@ -1017,14 +1253,14 @@ const {query: queryOptions, request: requestOptions} = options ?? {};
 }
 
 export type GetMoizvonkiMangoStatusQueryResult = NonNullable<Awaited<ReturnType<typeof getMoizvonkiMangoStatus>>>
-export type GetMoizvonkiMangoStatusQueryError = ErrorType<unknown>
+export type GetMoizvonkiMangoStatusQueryError = ErrorType<void>
 
 
 /**
- * @summary Get Mango Office connection status for the combined dashboard (no auth — uses the stored Mango credentials)
+ * @summary Get the shared Mango Office connection status for the combined dashboard
  */
 
-export function useGetMoizvonkiMangoStatus<TData = Awaited<ReturnType<typeof getMoizvonkiMangoStatus>>, TError = ErrorType<unknown>>(
+export function useGetMoizvonkiMangoStatus<TData = Awaited<ReturnType<typeof getMoizvonkiMangoStatus>>, TError = ErrorType<void>>(
   options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getMoizvonkiMangoStatus>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
 
  ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
@@ -1051,7 +1287,8 @@ export const getGetMoizvonkiMangoKpiUrl = () => {
 }
 
 /**
- * @summary Fetch today's Mango Office calls and traffic for the combined dashboard (no auth)
+ * Scoped to the Mango operator the user claimed at onboarding (member_id).
+ * @summary Fetch today's Mango Office calls and traffic for the current user's claimed operator
  */
 export const getMoizvonkiMangoKpi = async ( options?: Parameters<typeof customFetch>[1]): Promise<MangoKpi> => {
 
@@ -1098,7 +1335,7 @@ export type GetMoizvonkiMangoKpiQueryError = ErrorType<void>
 
 
 /**
- * @summary Fetch today's Mango Office calls and traffic for the combined dashboard (no auth)
+ * @summary Fetch today's Mango Office calls and traffic for the current user's claimed operator
  */
 
 export function useGetMoizvonkiMangoKpi<TData = Awaited<ReturnType<typeof getMoizvonkiMangoKpi>>, TError = ErrorType<void>>(
@@ -1107,6 +1344,231 @@ export function useGetMoizvonkiMangoKpi<TData = Awaited<ReturnType<typeof getMoi
  ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
 
   const queryOptions = getGetMoizvonkiMangoKpiQueryOptions(options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getGetMoizvonkiMangoOperatorsUrl = () => {
+
+
+
+
+  return `/api/moizvonki/mango/operators`
+}
+
+/**
+ * @summary List Mango Office operator names from the shared connection (for onboarding)
+ */
+export const getMoizvonkiMangoOperators = async ( options?: Parameters<typeof customFetch>[1]): Promise<MangoOperatorChoice[]> => {
+
+  return customFetch<MangoOperatorChoice[]>(getGetMoizvonkiMangoOperatorsUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetMoizvonkiMangoOperatorsQueryKey = () => {
+    return [
+    `/api/moizvonki/mango/operators`
+    ] as const;
+    }
+
+
+export const getGetMoizvonkiMangoOperatorsQueryOptions = <TData = Awaited<ReturnType<typeof getMoizvonkiMangoOperators>>, TError = ErrorType<void>>( options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getMoizvonkiMangoOperators>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetMoizvonkiMangoOperatorsQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getMoizvonkiMangoOperators>>> = ({ signal }) => getMoizvonkiMangoOperators({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getMoizvonkiMangoOperators>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetMoizvonkiMangoOperatorsQueryResult = NonNullable<Awaited<ReturnType<typeof getMoizvonkiMangoOperators>>>
+export type GetMoizvonkiMangoOperatorsQueryError = ErrorType<void>
+
+
+/**
+ * @summary List Mango Office operator names from the shared connection (for onboarding)
+ */
+
+export function useGetMoizvonkiMangoOperators<TData = Awaited<ReturnType<typeof getMoizvonkiMangoOperators>>, TError = ErrorType<void>>(
+  options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getMoizvonkiMangoOperators>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetMoizvonkiMangoOperatorsQueryOptions(options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getClaimMoizvonkiOperatorUrl = () => {
+
+
+
+
+  return `/api/moizvonki/me/claim-operator`
+}
+
+/**
+ * @summary Bind the current user to their Mango Office operator (chosen by name at first login)
+ */
+export const claimMoizvonkiOperator = async (claimOperatorBody: ClaimOperatorBody, options?: Parameters<typeof customFetch>[1]): Promise<TeamMember> => {
+
+  return customFetch<TeamMember>(getClaimMoizvonkiOperatorUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(claimOperatorBody)
+  }
+);}
+
+
+
+
+
+export const getClaimMoizvonkiOperatorMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof claimMoizvonkiOperator>>, TError,{data: BodyType<ClaimOperatorBody>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof claimMoizvonkiOperator>>, TError,{data: BodyType<ClaimOperatorBody>}, TContext> => {
+
+const mutationKey = ['claimMoizvonkiOperator'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof claimMoizvonkiOperator>>, {data: BodyType<ClaimOperatorBody>}> = (props) => {
+          const {data} = props ?? {};
+
+          return  claimMoizvonkiOperator(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type ClaimMoizvonkiOperatorMutationResult = NonNullable<Awaited<ReturnType<typeof claimMoizvonkiOperator>>>
+    export type ClaimMoizvonkiOperatorMutationBody = BodyType<ClaimOperatorBody>
+    export type ClaimMoizvonkiOperatorMutationError = ErrorType<void>
+
+    /**
+ * @summary Bind the current user to their Mango Office operator (chosen by name at first login)
+ */
+export const useClaimMoizvonkiOperator = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof claimMoizvonkiOperator>>, TError,{data: BodyType<ClaimOperatorBody>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof claimMoizvonkiOperator>>,
+        TError,
+        {data: BodyType<ClaimOperatorBody>},
+        TContext
+      > => {
+      return useMutation(getClaimMoizvonkiOperatorMutationOptions(options));
+    }
+
+export const getGetMoizvonkiTeamKpiUrl = () => {
+
+
+
+
+  return `/api/moizvonki/team/kpi`
+}
+
+/**
+ * @summary Team-wide Mango KPI for today — one row per operator plus totals (manager/admin only)
+ */
+export const getMoizvonkiTeamKpi = async ( options?: Parameters<typeof customFetch>[1]): Promise<MangoTeamKpi> => {
+
+  return customFetch<MangoTeamKpi>(getGetMoizvonkiTeamKpiUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetMoizvonkiTeamKpiQueryKey = () => {
+    return [
+    `/api/moizvonki/team/kpi`
+    ] as const;
+    }
+
+
+export const getGetMoizvonkiTeamKpiQueryOptions = <TData = Awaited<ReturnType<typeof getMoizvonkiTeamKpi>>, TError = ErrorType<void>>( options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getMoizvonkiTeamKpi>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetMoizvonkiTeamKpiQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getMoizvonkiTeamKpi>>> = ({ signal }) => getMoizvonkiTeamKpi({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getMoizvonkiTeamKpi>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetMoizvonkiTeamKpiQueryResult = NonNullable<Awaited<ReturnType<typeof getMoizvonkiTeamKpi>>>
+export type GetMoizvonkiTeamKpiQueryError = ErrorType<void>
+
+
+/**
+ * @summary Team-wide Mango KPI for today — one row per operator plus totals (manager/admin only)
+ */
+
+export function useGetMoizvonkiTeamKpi<TData = Awaited<ReturnType<typeof getMoizvonkiTeamKpi>>, TError = ErrorType<void>>(
+  options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getMoizvonkiTeamKpi>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetMoizvonkiTeamKpiQueryOptions(options)
 
   const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
 
@@ -1129,7 +1591,7 @@ export const getPutMoizvonkiMangoCredentialsUrl = () => {
 
 /**
  * Verifies credentials via headless-browser login before saving. May take up to ~60s.
- * @summary Store Mango Office login (email + password) for the combined dashboard
+ * @summary Store the shared Mango Office login (email + password) for the dashboard (manager/admin only)
  */
 export const putMoizvonkiMangoCredentials = async (mangoCredentialsInput: MangoCredentialsInput, options?: Parameters<typeof customFetch>[1]): Promise<void> => {
 
@@ -1178,7 +1640,7 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
     export type PutMoizvonkiMangoCredentialsMutationError = ErrorType<void>
 
     /**
- * @summary Store Mango Office login (email + password) for the combined dashboard
+ * @summary Store the shared Mango Office login (email + password) for the dashboard (manager/admin only)
  */
 export const usePutMoizvonkiMangoCredentials = <TError = ErrorType<void>,
     TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof putMoizvonkiMangoCredentials>>, TError,{data: BodyType<MangoCredentialsInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
@@ -1200,7 +1662,7 @@ export const getDeleteMoizvonkiMangoCredentialsUrl = () => {
 }
 
 /**
- * @summary Remove the stored Mango Office credentials
+ * @summary Remove the shared Mango Office credentials (manager/admin only)
  */
 export const deleteMoizvonkiMangoCredentials = async ( options?: Parameters<typeof customFetch>[1]): Promise<void> => {
 
@@ -1217,7 +1679,7 @@ export const deleteMoizvonkiMangoCredentials = async ( options?: Parameters<type
 
 
 
-export const getDeleteMoizvonkiMangoCredentialsMutationOptions = <TError = ErrorType<unknown>,
+export const getDeleteMoizvonkiMangoCredentialsMutationOptions = <TError = ErrorType<void>,
     TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof deleteMoizvonkiMangoCredentials>>, TError,void, TContext>, request?: SecondParameter<typeof customFetch>}
 ): UseMutationOptions<Awaited<ReturnType<typeof deleteMoizvonkiMangoCredentials>>, TError,void, TContext> => {
 
@@ -1246,12 +1708,12 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
 
     export type DeleteMoizvonkiMangoCredentialsMutationResult = NonNullable<Awaited<ReturnType<typeof deleteMoizvonkiMangoCredentials>>>
 
-    export type DeleteMoizvonkiMangoCredentialsMutationError = ErrorType<unknown>
+    export type DeleteMoizvonkiMangoCredentialsMutationError = ErrorType<void>
 
     /**
- * @summary Remove the stored Mango Office credentials
+ * @summary Remove the shared Mango Office credentials (manager/admin only)
  */
-export const useDeleteMoizvonkiMangoCredentials = <TError = ErrorType<unknown>,
+export const useDeleteMoizvonkiMangoCredentials = <TError = ErrorType<void>,
     TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof deleteMoizvonkiMangoCredentials>>, TError,void, TContext>, request?: SecondParameter<typeof customFetch>}
  ): UseMutationResult<
         Awaited<ReturnType<typeof deleteMoizvonkiMangoCredentials>>,
