@@ -1,0 +1,12 @@
+{
+  "version": 2,
+  "buildCommand": "cd artifacts/api-server && pnpm run build",
+  "installCommand": "pnpm install --frozen-lockfile",
+  "outputDirectory": "artifacts/api-server/dist",
+  "rewrites": [
+    {
+      "source": "/(.*)",
+      "destination": "artifacts/api-server/dist/index.mjs"
+    }
+  ]
+}
