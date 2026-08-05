@@ -9,9 +9,10 @@ import { rm, cp } from "node:fs/promises";
 globalThis.require = createRequire(import.meta.url);
 
 const artifactDir = path.dirname(fileURLToPath(import.meta.url));
+const workspaceRoot = path.resolve(artifactDir, "../..");
 
 async function buildAll() {
-  const distDir = path.resolve(artifactDir, "dist");
+  const distDir = path.resolve(workspaceRoot, "dist");
   await rm(distDir, { recursive: true, force: true });
 
   await esbuild({
@@ -123,7 +124,6 @@ globalThis.__dirname = __bannerPath.dirname(globalThis.__filename);
   });
 
   // Copy the shared DB migrations into dist so the artifact is self-contained.
-  const workspaceRoot = path.resolve(artifactDir, "../..");
   const migrationsSource = path.resolve(workspaceRoot, "lib/db/migrations");
   const migrationsDest = path.resolve(distDir, "migrations");
   await cp(migrationsSource, migrationsDest, { recursive: true });
