@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -24,8 +24,24 @@ function formatDuration(seconds: number) {
  * connection, with a multiselect filter — totals are recomputed over the
  * selected employees only.
  */
+const TRACKED_MEMBERS_STORAGE_KEY = 'moizvonki:tracked-team-members';
+
+function readTrackedMembers(): Set<number> | null {
+  try {
+    const stored = window.localStorage.getItem(TRACKED_MEMBERS_STORAGE_KEY);
+    if (stored === null) return null; // Existing managers begin by tracking everyone.
+    const values: unknown = JSON.parse(stored);
+    return Array.isArray(values)
+      ? new Set(values.filter((value): value is number => Number.isInteger(value) && value > 0))
+      : null;
+  } catch {
+    return null;
+  }
+}
+
 export function TeamView({ shiftHours }: { shiftHours: number }) {
-  const [selected, setSelected] = useState<Set<number> | null>(null); // null = all
+  // null means "all" until the manager makes their first explicit choice.
+  const [selected, setSelected] = useState<Set<number> | null>(readTrackedMembers);
 
   const { data, isLoading, error, isFetching, refetch } = useGetMoizvonkiTeamKpi({
     query: {
@@ -41,6 +57,13 @@ export function TeamView({ shiftHours }: { shiftHours: number }) {
   });
 
   const members: MangoOperator[] = useMemo(() => data?.members ?? [], [data]);
+  const allMemberIds = useMemo(() => members.map((member) => member.memberId), [members]);
+
+  useEffect(() => {
+    if (selected !== null) {
+      window.localStorage.setItem(TRACKED_MEMBERS_STORAGE_KEY, JSON.stringify([...selected]));
+    }
+  }, [selected]);
 
   const visible = useMemo(
     () => (selected === null ? members : members.filter((m) => selected.has(m.memberId))),
@@ -66,6 +89,9 @@ export function TeamView({ shiftHours }: { shiftHours: number }) {
   };
 
   const isChecked = (memberId: number) => selected === null || selected.has(memberId);
+  const selectedCount = selected === null ? members.length : visible.length;
+  const selectAll = () => setSelected(new Set(allMemberIds));
+  const clearAll = () => setSelected(new Set());
   const state = data?.state;
   const hasData = Boolean(data?.hasData);
   const updatedAt = data?.updatedAt ? new Date(data.updatedAt) : null;
@@ -93,7 +119,7 @@ export function TeamView({ shiftHours }: { shiftHours: number }) {
           <h3 className="text-lg font-semibold tracking-tight">Команда сегодня</h3>
           {selected !== null && (
             <Badge variant="secondary" className="font-medium">
-              Выбрано: {visible.length} из {members.length}
+              Отслеживаются: {selectedCount} из {members.length}
             </Badge>
           )}
         </div>
@@ -109,11 +135,6 @@ export function TeamView({ shiftHours }: { shiftHours: number }) {
                     ? ' · обновляем'
                     : ''}
             </span>
-          )}
-          {selected !== null && (
-            <Button variant="ghost" size="sm" onClick={() => setSelected(null)}>
-              Сбросить фильтр
-            </Button>
           )}
           <Button variant="outline" size="sm" className="gap-2" onClick={() => refetch()} disabled={isFetching}>
             <RefreshCw className={`w-4 h-4 ${isFetching ? 'animate-spin' : ''}`} />
@@ -186,14 +207,40 @@ export function TeamView({ shiftHours }: { shiftHours: number }) {
             </Card>
           </div>
 
-          {/* Per-employee table with multiselect */}
+          {/* The manager chooses which team members are included in the
+              tracked KPI summary. This preference persists on this device. */}
           <Card>
+            <CardHeader className="space-y-3 border-b py-4">
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <div>
+                  <CardTitle className="text-base">Кого отслеживать</CardTitle>
+                  <p className="mt-1 text-xs text-muted-foreground">
+                    В сводке учитываются только отмеченные сотрудники. Выбор сохраняется для этого руководителя в браузере.
+                  </p>
+                </div>
+                <div className="flex items-center gap-2">
+                  <Button variant="outline" size="sm" onClick={selectAll} disabled={members.length === 0 || selectedCount === members.length}>
+                    Выделить всех
+                  </Button>
+                  <Button variant="ghost" size="sm" onClick={clearAll} disabled={selectedCount === 0}>
+                    Снять все
+                  </Button>
+                </div>
+              </div>
+            </CardHeader>
             <CardContent className="p-0">
+              {members.length === 0 ? (
+                <p className="px-4 py-6 text-sm text-muted-foreground">В Mango пока нет доступных операторов.</p>
+              ) : (
               <ul className="divide-y">
                 {members.map((m) => (
                   <li key={m.memberId}>
                     <label className="flex items-center gap-3 px-4 py-3 cursor-pointer hover:bg-muted/40 transition-colors">
-                      <Checkbox checked={isChecked(m.memberId)} onCheckedChange={() => toggle(m.memberId)} />
+                      <Checkbox
+                        checked={isChecked(m.memberId)}
+                        onCheckedChange={() => toggle(m.memberId)}
+                        aria-label={`Отслеживать ${m.memberName}`}
+                      />
                       <span className="flex-1 font-medium text-sm">{m.memberName}</span>
                       <span className="font-mono text-sm tabular-nums text-muted-foreground w-20 text-right">
                         {m.calls} зв.
@@ -205,6 +252,7 @@ export function TeamView({ shiftHours }: { shiftHours: number }) {
                   </li>
                 ))}
               </ul>
+              )}
             </CardContent>
           </Card>
         </>
