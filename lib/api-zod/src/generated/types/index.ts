@@ -10,7 +10,6 @@ export * from './autoReportSchedule';
 export * from './autoReportScheduleInput';
 export * from './autoReportScheduleUpdate';
 export * from './claimOperatorBody';
-export * from './createdTeamInvitation';
 export * from './getSheetCountsParams';
 export * from './healthStatus';
 export * from './invitationStatus';

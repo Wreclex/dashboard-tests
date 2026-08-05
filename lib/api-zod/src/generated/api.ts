@@ -106,7 +106,7 @@ export const ListAdminInvitationsResponse = zod.array(ListAdminInvitationsRespon
 
 
 /**
- * @summary Create a team invitation with a pre-assigned role (admin only)
+ * @summary Pre-assign a role to an email address; applied when that person first signs in (admin only)
  */
 export const createAdminInvitationBodyEmailMin = 3;
 
@@ -125,9 +125,7 @@ export const CreateAdminInvitationResponse = zod.object({
   "expiresAt": zod.coerce.date(),
   "createdAt": zod.coerce.date(),
   "acceptedAt": zod.coerce.date().nullable()
-}).and(zod.object({
-  "token": zod.string()
-}))
+})
 
 
 /**

@@ -1,20 +1,27 @@
 ---
 name: Mango Office authentication approach
-description: Mango KPI API requires the RS256 jwt_token from CCC localStorage sent in a form-urlencoded body with GroupId[]; headless browser login harvests it
+description: Constraints of the Mango CCC KPI API and its headless sign-in — what the API accepts, what the login page rejects, and which session state must be treated as separately owned
 ---
 
-## Rule
-`api2.mangotele.com` (CCC KPI reports) accepts ONLY the **RS256 `jwt_token`** from CCC localStorage, sent **inside an `application/x-www-form-urlencoded` body** — not as a query param, not as a Bearer header. The HS256 `auth_token` is a login-only token; api2 rejects it ("Incorrect key for this algorithm"). Key protocol facts (all verified by live curl replay, Aug 2026):
+## Protocol constraints
 
-- KPI reports REQUIRE `GroupId[]` form params (operator group IDs from localStorage `<member_id>.operator_groups`) — the report returns 0 rows without them.
-- `total-time-external-calls` arrives as an **"HH:MM:SS" string**, not seconds (hours can exceed 24).
-- Handshake `POST /v2/ccc/reports/oper-kpi2` returns **202 + {key}**; poll `POST .../oper-kpi2/result` with the same form body + `key`.
-- `jwt_token` TTL ≈ 20 h → one successful login per day is enough.
-- Mango **refresh tokens cannot mint RS256 JWTs** — the refresh tier was removed from the KPI flow; cached jwt_token → headless re-login are the only tiers.
-- Mango enforces single-session: a headless login may kick the user's own CCC session (and vice versa). Tolerable because one login/day suffices — logins run at report time.
-- The GroupId[] report returns **one row per member of the groups** — results MUST be scoped to the token's operator or the KPI sum includes every colleague's calls/traffic. The member id comes from the jwt itself (`payload.data.member_id`, object or JSON-string form); an undecodable member id must fail closed, never aggregate all members.
-- **Call-count field semantics**: `count-received-calls` counts ONLY incoming calls — an outbound-only operator shows 0 calls with non-zero traffic. Dial attempts ("Кол-во звонков") live in `count-outbound-total-calls` (integer); `count-completed-calls` = answered. Read outbound first, fall back to received. Beware `total-count-made-calls`: despite the name it is a duration "HH:MM:SS", not a count.
+`api2.mangotele.com` (CCC KPI reports) accepts ONLY the **RS256 `jwt_token`** from a real CCC browser session, sent **inside an `application/x-www-form-urlencoded` body** — not a query param, not a Bearer header. The HS256 `auth_token` is login-only and is rejected.
 
-**Why:** Earlier attempts (Bearer auth_token, query-param jwt, JSON body, refresh-token exchange, group-list/token-exchange endpoints) all failed against production; only the captured browser-traffic form-body protocol returned real KPI data.
+- KPI reports REQUIRE `GroupId[]` (operator group IDs). Without them the report returns zero rows — never an error.
+- The report is two-phase: handshake returns 202 + a key, then poll the result endpoint with the same body + key.
+- `jwt_token` TTL ≈ 20 h, so one successful login per day suffices. **Refresh tokens cannot mint an RS256 JWT** — cached token, then a fresh headless login, are the only tiers.
+- Mango enforces single-session: a headless login can kick the user's own CCC session and vice versa.
+- The group report returns one row per member of the groups, so results MUST be scoped to a specific operator or a personal KPI silently becomes the whole team's. An undecodable member id must fail closed.
+- Field semantics are counterintuitive: only incoming calls are counted in the "received" field, dial attempts live in the outbound-total field, and at least one "count"-named field is actually an "HH:MM:SS" duration. Verify a field's type against live data before trusting its name.
 
-**How to apply:** Headless login (playwright-core, email+password) harvests `jwt_token`, `current_member`, and `<member>.operator_groups` in one pass and needs a ≥65 s caller budget (scheduler uses 120 s). Manual fallback when headless login is blocked: user pastes `jwt_token||operator_groups` copied via a DevTools console one-liner into PUT /mango/token.
+**Why:** Bearer auth, query-param JWTs, JSON bodies, refresh-token exchange, and token/group endpoints were all tried against production and failed; only the form-body protocol captured from real browser traffic returns data.
+
+## Sign-in constraints
+
+- The SSO page runs **Yandex SmartCaptcha in invisible mode**. It scores the browser and refuses automation *silently*: the page simply stays on the filled form with no error text, which is indistinguishable from a wrong password. A plain-browser fingerprint (no automation-controlled flag, no `navigator.webdriver`, ru-RU locale/timezone, real UA) plus per-key typing delays flips the same check to accepted.
+- After sign-in the workspace sits behind a gate dialog that must be clicked before session keys are written; its label has already changed once. Match the gate by button text pattern, never a single fixed label.
+- **A successful login no longer republishes the operator group list.** Treat that list as separately owned, persisted state: never overwrite it with an empty value, and fall back to the stored copy when a login returns none.
+
+**Why:** Requiring the group list as proof of a successful login turned a perfectly good sign-in into a bogus "wrong login/password" error that looked like a credentials problem for days.
+
+**How to apply:** Headless login needs a ≥65 s caller budget. When automation is genuinely blocked, the fallback is the user pasting their own token + groups from their browser session — keep that path working, and describe login failures honestly (captcha refusal ≠ bad credentials).

@@ -20,9 +20,14 @@ const roleLabels: Record<TeamRole, string> = {
   employee: 'Сотрудник',
 };
 
-async function copyInviteText(token: string, role: TeamRole) {
-  const link = `${window.location.origin}${import.meta.env.BASE_URL}sign-up?team_invite=${encodeURIComponent(token)}`;
-  const text = `Здравствуйте! Вас добавили в команду. Войдите или зарегистрируйтесь по ссылке: ${link}\nВаша роль: ${roleLabels[role]}.`;
+/**
+ * An invitation is a role pre-assignment for an email address, not a secret
+ * link: the role applies to whoever signs in with that address. So the message
+ * carries the plain app link and stresses which email to use.
+ */
+async function copyInviteText(email: string, role: TeamRole) {
+  const link = `${window.location.origin}${import.meta.env.BASE_URL}sign-up`;
+  const text = `Здравствуйте! Вас добавили в команду. Зарегистрируйтесь по ссылке: ${link}\nВажно: войдите именно с адресом ${email} — роль «${roleLabels[role]}» назначена на него.`;
   try {
     await navigator.clipboard.writeText(text);
   } catch {
@@ -71,9 +76,9 @@ export function TeamSetupDialog({
       { data: { email, role } },
       {
         onSuccess: async (invite) => {
-          await copyInviteText(invite.token, invite.role);
+          await copyInviteText(invite.email, invite.role);
           setEmail('');
-          setMessage('Приглашение создано — сообщение со ссылкой скопировано.');
+          setMessage('Роль закреплена за этим email — готовое сообщение скопировано.');
           invalidate();
         },
         onError: (requestError: any) => {
@@ -123,18 +128,18 @@ export function TeamSetupDialog({
               </select>
               <Button type="submit" disabled={create.isPending}>{create.isPending ? 'Создаём…' : 'Создать'}</Button>
             </div>
-            <p className="text-[11px] text-muted-foreground">После создания готовое сообщение со ссылкой копируется автоматически.</p>
+            <p className="text-[11px] text-muted-foreground">Роль закрепляется за email на 14 дней и применяется при первом входе с этим адресом.</p>
           </form>
           {message && <p role="status" className="rounded-md bg-green-500/10 p-2 text-xs text-green-700 dark:text-green-400">{message}</p>}
           {error && <p role="alert" className="rounded-md bg-destructive/10 p-2 text-xs text-destructive">{error}</p>}
           <section>
-            <h3 className="mb-2 text-sm font-medium">Ожидают входа ({pending.length})</h3>
-            {pending.length === 0 ? <p className="text-xs text-muted-foreground">Нет активных приглашений.</p> : (
+            <h3 className="mb-2 text-sm font-medium">Роль закреплена, ждём первого входа ({pending.length})</h3>
+            {pending.length === 0 ? <p className="text-xs text-muted-foreground">Нет закреплённых ролей.</p> : (
               <div className="space-y-2">
                 {pending.map((invite) => (
                   <div key={invite.id} className="flex items-center gap-2 rounded-md border p-2.5">
                     <div className="min-w-0 flex-1"><p className="truncate text-xs font-medium">{invite.email}</p><p className="text-[11px] text-muted-foreground">{roleLabels[invite.role]} · до {new Date(invite.expiresAt).toLocaleDateString('ru-RU')}</p></div>
-                    <Button variant="ghost" size="sm" onClick={() => setMessage('Ссылку можно скопировать только при создании. Создайте новое приглашение для этого email — старая ссылка станет недействительной.') }><Copy className="mr-1 w-3.5 h-3.5" />Ссылка</Button>
+                    <Button variant="ghost" size="sm" onClick={async () => { await copyInviteText(invite.email, invite.role); setMessage('Сообщение скопировано — отправьте его коллеге.'); }}><Copy className="mr-1 w-3.5 h-3.5" />Скопировать текст</Button>
                     <Button variant="ghost" size="sm" className="text-destructive" onClick={() => revoke.mutate({ id: invite.id }, { onSuccess: invalidate })}>Отменить</Button>
                   </div>
                 ))}

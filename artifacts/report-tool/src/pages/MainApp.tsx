@@ -8,7 +8,6 @@ import TelegramModal from '@/components/TelegramModal';
 import DefaultsModal from '@/components/DefaultsModal';
 import AutoReportModal from '@/components/AutoReportModal';
 import MangoModal from '@/components/MangoModal';
-import AdminUsersModal from '@/components/AdminUsersModal';
 import TeamSetupModal from '@/components/TeamSetupModal';
 import { useReportState, buildPreviewText, formatDate } from '@/hooks/useReportState';
 import { useGetSheetCounts, getGetSheetCountsQueryKey, useGetMangoKpi, getGetMangoKpiQueryKey, useGetMe, getGetMeQueryKey } from '@workspace/api-client-react';
@@ -34,7 +33,6 @@ export default function MainApp() {
   const [defaultsOpen, setDefaultsOpen] = useState(false);
   const [autoOpen, setAutoOpen] = useState(false);
   const [mangoOpen, setMangoOpen] = useState(false);
-  const [adminOpen, setAdminOpen] = useState(false);
   const [teamSetupOpen, setTeamSetupOpen] = useState(false);
 
   // Team profile — registers the user on first login and carries their role.
@@ -537,14 +535,10 @@ export default function MainApp() {
         onClose={() => setMangoOpen(false)}
         isSignedIn={Boolean(userId)}
       />
-      <AdminUsersModal
-        open={adminOpen}
-        onClose={() => setAdminOpen(false)}
-        currentUserId={userId}
-      />
       <TeamSetupModal
         open={teamSetupOpen}
         onClose={() => setTeamSetupOpen(false)}
+        currentUserId={userId}
         onOpenMango={() => {
           setTeamSetupOpen(false);
           setMangoOpen(true);

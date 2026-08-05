@@ -12,10 +12,11 @@ import {
   useListAdminInvitations,
   useListAdminUsers,
   useUpdateAdminUserOperator,
+  useUpdateAdminUserRole,
   getGetMeQueryKey,
 } from '@workspace/api-client-react';
 import type { TeamMember, TeamRole } from '@workspace/api-client-react';
-import { Check, Clipboard, Link2, Radio, RefreshCw, UserPlus, Users, X } from 'lucide-react';
+import { Check, Clipboard, Radio, RefreshCw, ShieldCheck, UserPlus, Users, X } from 'lucide-react';
 
 const ROLE_LABELS: Record<TeamRole, string> = {
   admin: 'Администратор',
@@ -23,10 +24,14 @@ const ROLE_LABELS: Record<TeamRole, string> = {
   employee: 'Сотрудник',
 };
 
-function invitationLink(token: string) {
-  // The assignment itself matches Clerk's email at first sign-in. The link is
-  // still a useful, private handoff marker and is never persisted client-side.
-  return `${window.location.origin}${import.meta.env.BASE_URL}sign-up?team_invite=${encodeURIComponent(token)}`;
+function signUpLink() {
+  // Plain app link — an invitation is a role pre-assignment for an email, not
+  // a secret. Whoever signs in with that address gets the assigned role.
+  return `${window.location.origin}${import.meta.env.BASE_URL}sign-up`;
+}
+
+function invitationMessage(email: string, role: TeamRole) {
+  return `Здравствуйте! Вас добавили в команду. Зарегистрируйтесь по ссылке: ${signUpLink()}\nВажно: войдите именно с адресом ${email} — роль «${ROLE_LABELS[role]}» назначена на него.`;
 }
 
 async function copyText(value: string): Promise<void> {
@@ -46,10 +51,13 @@ export default function TeamSetupModal({
   open,
   onClose,
   onOpenMango,
+  currentUserId,
 }: {
   open: boolean;
   onClose: () => void;
   onOpenMango: () => void;
+  /** Clerk id of the signed-in admin — their own role must stay locked. */
+  currentUserId?: string | null;
 }) {
   const queryClient = useQueryClient();
   const [email, setEmail] = useState('');
@@ -77,6 +85,7 @@ export default function TeamSetupModal({
   const createInvitation = useCreateAdminInvitation();
   const deleteInvitation = useDeleteAdminInvitation();
   const updateOperator = useUpdateAdminUserOperator();
+  const updateRole = useUpdateAdminUserRole();
 
   const users = usersQuery.data ?? [];
   const invitations = invitationsQuery.data ?? [];
@@ -106,11 +115,10 @@ export default function TeamSetupModal({
       { data: { email, role } },
       {
         onSuccess: async (invite) => {
-          const link = invitationLink(invite.token);
-          await copyText(`Здравствуйте! Вас добавили в команду. Войдите или зарегистрируйтесь по ссылке: ${link}\nВаша роль: ${ROLE_LABELS[invite.role]}.`);
+          await copyText(invitationMessage(invite.email, invite.role));
           setCopiedId(invite.id);
           setEmail('');
-          setNotice('Приглашение создано. Готовое сообщение со ссылкой скопировано.');
+          setNotice('Роль закреплена за этим email. Готовое сообщение скопировано — отправьте его коллеге.');
           invalidateTeam();
         },
         onError: (requestError: any) => {
@@ -125,12 +133,28 @@ export default function TeamSetupModal({
     );
   };
 
-  const copyInvite = async (id: string) => {
-    // The raw token is intentionally returned only once, at creation. Existing
-    // invitations instead tell the admin to issue a fresh link, which revokes
-    // the previous secret.
-    setCopiedId(id);
-    setNotice('Для безопасности ссылку можно скопировать только в момент создания. Создайте новое приглашение для этого email — старая ссылка станет недействительной.');
+  const copyInvite = async (invite: { id: string; email: string; role: TeamRole }) => {
+    await copyText(invitationMessage(invite.email, invite.role));
+    setCopiedId(invite.id);
+    setNotice('Сообщение скопировано — отправьте его коллеге.');
+  };
+
+  const changeRole = (member: TeamMember, nextRole: TeamRole) => {
+    setNotice(null);
+    setError(null);
+    updateRole.mutate(
+      { clerkUserId: member.clerkUserId, data: { role: nextRole } },
+      {
+        onSuccess: invalidateTeam,
+        onError: (requestError: any) => {
+          setError(
+            requestError?.response?.data?.error === 'cannot_change_own_role'
+              ? 'Нельзя изменить собственную должность.'
+              : 'Не удалось изменить должность участника.',
+          );
+        },
+      },
+    );
   };
 
   const assignOperator = (member: TeamMember, value: string) => {
@@ -212,7 +236,7 @@ export default function TeamSetupModal({
                     {createInvitation.isPending ? 'Создаём…' : 'Пригласить'}
                   </button>
                 </form>
-                <p className="mt-2 text-[10px] text-muted-foreground">После создания сообщение со ссылкой автоматически копируется. Ссылка действует 14 дней.</p>
+                <p className="mt-2 text-[10px] text-muted-foreground">Роль закрепляется за этим email на 14 дней и применяется, когда человек впервые войдёт с этим адресом. Готовое сообщение копируется автоматически.</p>
               </section>
 
               {notice && <p role="status" className="rounded-xl bg-green-500/10 px-3 py-2 text-xs text-green-400">{notice}</p>}
@@ -220,7 +244,7 @@ export default function TeamSetupModal({
 
               {pending.length > 0 && (
                 <section aria-labelledby="pending-title">
-                  <h3 id="pending-title" className="text-xs font-bold text-foreground mb-2">Ожидают входа ({pending.length})</h3>
+                  <h3 id="pending-title" className="text-xs font-bold text-foreground mb-2">Роль закреплена, ждём первого входа ({pending.length})</h3>
                   <div className="space-y-2">
                     {pending.map((invite) => (
                       <div key={invite.id} className="rounded-xl border border-white/[0.07] p-3 flex flex-wrap items-center gap-2">
@@ -228,8 +252,8 @@ export default function TeamSetupModal({
                           <p className="text-xs font-semibold text-foreground">{invite.email}</p>
                           <p className="text-[10px] text-muted-foreground">{ROLE_LABELS[invite.role]} · до {new Date(invite.expiresAt).toLocaleDateString('ru-RU')}</p>
                         </div>
-                        <button type="button" onClick={() => copyInvite(invite.id)} className="press-sm h-8 px-3 rounded-full bg-white/[0.06] text-xs text-muted-foreground hover:text-foreground flex gap-1.5 items-center">
-                          {copiedId === invite.id ? <Check size={12} /> : <Clipboard size={12} />} Новая ссылка
+                        <button type="button" onClick={() => copyInvite(invite)} className="press-sm h-8 px-3 rounded-full bg-white/[0.06] text-xs text-muted-foreground hover:text-foreground flex gap-1.5 items-center">
+                          {copiedId === invite.id ? <Check size={12} /> : <Clipboard size={12} />} Скопировать текст
                         </button>
                         <button type="button" onClick={() => deleteInvitation.mutate({ id: invite.id }, { onSuccess: invalidateTeam })} className="press-sm h-8 px-3 rounded-full bg-destructive/10 text-destructive text-xs" aria-label={`Отменить приглашение для ${invite.email}`}>Отменить</button>
                       </div>
@@ -245,11 +269,26 @@ export default function TeamSetupModal({
                 </div>
                 <div className="space-y-2">
                   {users.map((member) => (
-                    <div key={member.clerkUserId} className="rounded-xl border border-white/[0.07] p-3 grid sm:grid-cols-[1fr_210px] items-center gap-2">
+                    <div key={member.clerkUserId} className="rounded-xl border border-white/[0.07] p-3 grid sm:grid-cols-[1fr_170px_210px] items-center gap-2">
                       <div className="min-w-0">
                         <p className="text-xs font-semibold text-foreground truncate">{member.displayName || member.email || member.clerkUserId}</p>
-                        <p className="text-[10px] text-muted-foreground truncate">{ROLE_LABELS[member.role]}{member.email ? ` · ${member.email}` : ''}</p>
+                        <p className="text-[10px] text-muted-foreground truncate">{member.email || member.clerkUserId}</p>
                       </div>
+                      <label className="text-[10px] text-muted-foreground flex items-center gap-2">
+                        <ShieldCheck size={12} className="text-primary" />
+                        <span className="sr-only">Должность участника {member.displayName || member.email || member.clerkUserId}</span>
+                        <select
+                          value={member.role}
+                          onChange={(event) => changeRole(member, event.target.value as TeamRole)}
+                          disabled={member.clerkUserId === currentUserId || updateRole.isPending}
+                          title={member.clerkUserId === currentUserId ? 'Нельзя изменить собственную должность' : undefined}
+                          className="flex-1 h-8 rounded-lg px-2 bg-white/[0.06] border border-white/[0.1] text-xs text-foreground focus:outline-none focus:ring-2 focus:ring-primary/60 disabled:opacity-50"
+                        >
+                          <option value="employee" className="bg-[#1a1a1a]">Сотрудник</option>
+                          <option value="manager" className="bg-[#1a1a1a]">Руководитель</option>
+                          <option value="admin" className="bg-[#1a1a1a]">Администратор</option>
+                        </select>
+                      </label>
                       <label className="text-[10px] text-muted-foreground flex items-center gap-2">
                         <Radio size={12} className="text-teal-400" />
                         <select value={member.mangoMemberId ? String(member.mangoMemberId) : ''} onChange={(event) => assignOperator(member, event.target.value)} disabled={!mangoStatus.data?.isConnected || updateOperator.isPending} className="flex-1 h-8 rounded-lg px-2 bg-white/[0.06] border border-white/[0.1] text-xs text-foreground focus:outline-none focus:ring-2 focus:ring-primary/60 disabled:opacity-50">

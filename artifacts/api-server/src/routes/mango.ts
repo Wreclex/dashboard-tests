@@ -78,7 +78,11 @@ router.put("/credentials", requireAuth, async (req: any, res): Promise<void> => 
       ? {
           ...base,
           authToken: encryptToken(session.jwtToken),
-          operatorGroups: JSON.stringify(session.operatorGroups),
+          // Keep any previously stored groups when this login did not
+          // republish them — without GroupId[] the KPI report is empty.
+          ...(session.operatorGroups.length > 0
+            ? { operatorGroups: JSON.stringify(session.operatorGroups) }
+            : {}),
         }
       : base;
     await db

@@ -71,6 +71,13 @@
       "when": 1785836000000,
       "tag": "0009_team_invitations",
       "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "7",
+      "when": 1785913000000,
+      "tag": "0010_team_invitations_drop_token",
+      "breakpoints": true
     }
   ]
 }

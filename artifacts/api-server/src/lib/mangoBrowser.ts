@@ -18,6 +18,15 @@
  *   input[type="text"]      — login field
  *   input[type="password"]  — password field
  *   button[type="submit"]   — "Войти"
+ *
+ * The login page runs Yandex SmartCaptcha in invisible mode. It scores the
+ * browser rather than asking for a puzzle, so a default Playwright launch is
+ * silently refused ({"status":"failed"}) and the page just stays on the form
+ * with no error text — indistinguishable from a wrong password. Presenting a
+ * plain-browser fingerprint and typing at human speed makes the same check
+ * return {"status":"ok"} and the SSO flow completes. Keep these measures in
+ * place; removing any of them brings back the "не принял логин/пароль или
+ * запросил капчу" failure.
  */
 
 import { execSync } from "node:child_process";
@@ -27,6 +36,8 @@ import { MangoKpiUnavailableError } from "./mangoKpiFormat.ts";
 
 const CCC_URL = "https://ccc.mango-office.ru/";
 const LOGIN_TIMEOUT_MS = 60_000;
+/** How long to keep waiting for `operator_groups` after the token appears. */
+const GROUPS_SETTLE_MS = 20_000;
 
 function chromiumPath(): string {
   if (process.env.MANGO_CHROMIUM_PATH) return process.env.MANGO_CHROMIUM_PATH;
@@ -80,7 +91,17 @@ async function runMangoBrowserLogin(
   timeoutMs: number,
 ): Promise<MangoBrowserSession> {
   const browser = await chromium
-    .launch({ executablePath: chromiumPath(), args: ["--no-sandbox", "--disable-dev-shm-usage"] })
+    .launch({
+      executablePath: chromiumPath(),
+      args: [
+        "--no-sandbox",
+        "--disable-dev-shm-usage",
+        // Drops the `AutomationControlled` blink feature that SmartCaptcha
+        // reads straight off the browser.
+        "--disable-blink-features=AutomationControlled",
+        "--lang=ru-RU",
+      ],
+    })
     .catch((err) => {
       throw new MangoKpiUnavailableError(
         `Failed to launch headless browser: ${err instanceof Error ? err.message : String(err)}`,
@@ -88,12 +109,24 @@ async function runMangoBrowserLogin(
     });
 
   try {
-    const page = await browser.newPage({
+    const context = await browser.newContext({
       viewport: { width: 1440, height: 900 },
       userAgent:
         "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/138.0.0.0 Safari/537.36",
       locale: "ru-RU",
+      timezoneId: "Europe/Moscow",
     });
+
+    // Remaining automation tells SmartCaptcha inspects from page scripts.
+    await context.addInitScript(() => {
+      const nav = navigator as Navigator & { webdriver?: unknown };
+      Object.defineProperty(nav, "webdriver", { get: () => undefined });
+      Object.defineProperty(nav, "languages", { get: () => ["ru-RU", "ru"] });
+      Object.defineProperty(nav, "plugins", { get: () => [1, 2, 3, 4, 5] });
+      (globalThis as { chrome?: unknown }).chrome = { runtime: {} };
+    });
+
+    const page = await context.newPage();
 
     await page.goto(CCC_URL, { waitUntil: "domcontentloaded", timeout: timeoutMs });
 
@@ -102,13 +135,20 @@ async function runMangoBrowserLogin(
       throw new MangoKpiUnavailableError("Mango login form did not appear");
     });
 
-    await page.fill('input[type="text"]', email);
-    await page.fill('input[type="password"]', password);
+    // Typed, not filled: instant value injection is one of the signals that
+    // makes the invisible captcha refuse the sign-in.
+    await page.click('input[type="text"]');
+    await page.type('input[type="text"]', email, { delay: 90 });
+    await page.click('input[type="password"]');
+    await page.type('input[type="password"]', password, { delay: 110 });
+    await page.waitForTimeout(700);
     await page.click('button[type="submit"]');
 
     // Wait for either: redirect back to ccc.mango-office.ru with tokens in
     // localStorage, or an error message on the auth page.
     const deadline = Date.now() + timeoutMs;
+    let harvestedJwt: string | null = null;
+    let jwtSeenAt = 0;
     while (Date.now() < deadline) {
       await page.waitForTimeout(1_000);
       const url = page.url();
@@ -131,20 +171,33 @@ async function runMangoBrowserLogin(
               (g): g is number => typeof g === "number" && Number.isFinite(g) && g > 0,
             )
           : [];
-        if (harvested.jwt && operatorGroups.length > 0) {
-          return {
-            jwtToken: harvested.jwt.trim().replace(/^"+|"+$/g, ""),
-            operatorGroups,
-          };
+        if (harvested.jwt) {
+          harvestedJwt = harvested.jwt.trim().replace(/^"+|"+$/g, "");
+          if (operatorGroups.length > 0) {
+            return { jwtToken: harvestedJwt, operatorGroups };
+          }
+          // The token is in hand but the group list is not. CCC writes
+          // `<member>.operator_groups` only for accounts that sit in operator
+          // groups, and only once the workspace finishes booting — so wait a
+          // settle window rather than the full deadline, then hand back the
+          // token alone and let the caller reuse the groups it already stored.
+          if (jwtSeenAt === 0) jwtSeenAt = Date.now();
+          else if (Date.now() - jwtSeenAt > GROUPS_SETTLE_MS) {
+            return { jwtToken: harvestedJwt, operatorGroups: [] };
+          }
         }
-        // After login the CCC shows a "Начать" gate — click it to enter the app.
+        // Post-login the CCC blocks the workspace behind a gate — historically
+        // "Начать", currently a "Выбор статуса" dialog with "Применить".
+        // Nothing (not even current_member) is written until it is dismissed.
         await page
           .evaluate(() => {
-            const doc = (globalThis as { document?: { querySelectorAll(s: string): ArrayLike<{ textContent?: string | null; click(): void }> } }).document;
+            const doc = (globalThis as { document?: { querySelectorAll(s: string): ArrayLike<{ textContent?: string | null; disabled?: boolean; click(): void }> } }).document;
             if (!doc) return;
             const buttons = Array.from(doc.querySelectorAll("button"));
-            const start = buttons.find((b) => /начать/i.test(b.textContent ?? ""));
-            start?.click();
+            const gate = buttons.find(
+              (b) => /начать|применить|продолжить/i.test(b.textContent ?? "") && !b.disabled,
+            );
+            gate?.click();
           })
           .catch(() => {});
         continue; // SPA still booting — tokens not written yet
@@ -170,10 +223,16 @@ async function runMangoBrowserLogin(
       }
     }
 
-    // Still on the auth page after the deadline: wrong credentials or a
-    // captcha/2FA challenge. Either way the stored credentials did not log us in.
+    // Logged in, but the workspace never produced a group list within the
+    // deadline: still a usable token for callers that already know the groups.
+    if (harvestedJwt) return { jwtToken: harvestedJwt, operatorGroups: [] };
+
+    // Still on the auth page after the deadline: wrong credentials, or the
+    // invisible captcha refused this sign-in. Either way the stored
+    // credentials did not log us in — point at both ways out.
     throw new MangoAuthError(
-      "Mango не принял логин/пароль или запросил капчу. Проверьте данные и попробуйте снова",
+      "Mango не завершил вход: неверный логин/пароль либо проверка Mango отклонила автоматический вход. " +
+        "Проверьте данные и повторите, а если вход не проходит — вставьте токен вручную в настройках Mango",
     );
   } catch (err) {
     // Normalize Playwright operational failures (navigation timeouts, selector

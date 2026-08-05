@@ -331,7 +331,15 @@ router.put("/mango/credentials", requireRole("manager", "admin"), async (req: an
         updatedAt: new Date(),
       };
       const withTokens = session
-        ? { ...base, authToken: encryptToken(session.jwtToken), operatorGroups: JSON.stringify(session.operatorGroups) }
+        ? {
+            ...base,
+            authToken: encryptToken(session.jwtToken),
+            // A login without a group list must not clear the stored one —
+            // the KPI report returns nothing without GroupId[].
+            ...(session.operatorGroups.length > 0
+              ? { operatorGroups: JSON.stringify(session.operatorGroups) }
+              : {}),
+          }
         : base;
       await db
         .insert(mangoCredentials)

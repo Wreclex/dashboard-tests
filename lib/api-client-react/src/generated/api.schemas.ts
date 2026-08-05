@@ -192,10 +192,6 @@ export interface TeamInvitationInput {
   role: TeamRole;
 }
 
-export type CreatedTeamInvitation = TeamInvitation & {
-  token: string;
-};
-
 export interface MangoOperator {
   memberId: number;
   memberName: string;

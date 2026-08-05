@@ -71,7 +71,11 @@ async function persistSession(
       .update(mangoCredentials)
       .set({
         authToken: encryptToken(session.jwtToken),
-        operatorGroups: JSON.stringify(session.operatorGroups),
+        // A login that yielded no group list must not wipe the stored one —
+        // the KPI report returns zero rows without GroupId[].
+        ...(session.operatorGroups.length > 0
+          ? { operatorGroups: JSON.stringify(session.operatorGroups) }
+          : {}),
         updatedAt: new Date(),
       })
       .where(eq(mangoCredentials.userId, userId));
@@ -181,8 +185,16 @@ async function fetchWithMangoSession<M extends MangoFetchMode>(
   const session = await loginPromise;
 
   await persistSession(opts?.userId, session);
+  // CCC does not always re-publish the group list on login; the previously
+  // stored one stays valid, so fall back to it before giving up.
+  const groups = session.operatorGroups.length > 0 ? session.operatorGroups : cachedGroups;
+  if (groups.length === 0) {
+    throw new MangoAuthError(
+      "Mango вошёл, но не отдал список групп операторов — вставьте jwt_token и группы вручную в настройках Mango",
+    );
+  }
   try {
-    return await run(session.jwtToken, session.operatorGroups);
+    return await run(session.jwtToken, groups);
   } catch (err) {
     // A freshly harvested session being rejected is an auth-class failure —
     // classify it so callers return 401 (re-login) instead of a generic 500.

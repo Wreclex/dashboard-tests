@@ -1,7 +1,7 @@
 import { Router } from "express";
-import { createHash, randomBytes, randomUUID } from "node:crypto";
+import { randomUUID } from "node:crypto";
 import { db, teamInvitations, teamMembers } from "@workspace/db";
-import { and, asc, desc, eq, gt, isNull, ne } from "drizzle-orm";
+import { and, asc, desc, eq, isNull, ne } from "drizzle-orm";
 import {
   TEAM_ROLES,
   ensureTeamMember,
@@ -137,8 +137,13 @@ router.patch("/admin/users/:clerkUserId/operator", requireAuth, requireRole("adm
 
 // ── Invitations (admin role only) ────────────────────────────────────────────
 
+/**
+ * An invitation pre-assigns a role to an email address. It is not an access
+ * gate and carries no secret: the invited person signs in with Clerk as usual
+ * and the role is applied when their email first reaches `/me`. After this
+ * window the assignment lapses and the person joins as an employee.
+ */
 const INVITATION_LIFETIME_DAYS = 14;
-const hashInvitationToken = (token: string) => createHash("sha256").update(token).digest("hex");
 
 router.get("/admin/invitations", requireAuth, requireRole("admin"), async (req: any, res): Promise<void> => {
   try {
@@ -169,8 +174,10 @@ router.post("/admin/invitations", requireAuth, requireRole("admin"), async (req:
       return;
     }
 
-    // Replace a previous pending invitation for this address, so the copied
-    // link always contains the only valid secret.
+    // Retire EVERY open assignment for this address first — including expired
+    // ones. The unique index treats any unaccepted, unrevoked row as open, so
+    // skipping expired rows made re-inviting someone after 14 days fail with a
+    // constraint violation instead of issuing a fresh assignment.
     await db
       .update(teamInvitations)
       .set({ revokedAt: new Date() })
@@ -179,11 +186,9 @@ router.post("/admin/invitations", requireAuth, requireRole("admin"), async (req:
           eq(teamInvitations.email, email),
           isNull(teamInvitations.acceptedAt),
           isNull(teamInvitations.revokedAt),
-          gt(teamInvitations.expiresAt, new Date()),
         ),
       );
 
-    const token = randomBytes(24).toString("base64url");
     const now = new Date();
     const expiresAt = new Date(now.getTime() + INVITATION_LIFETIME_DAYS * 24 * 60 * 60_000);
     const [row] = await db
@@ -192,13 +197,12 @@ router.post("/admin/invitations", requireAuth, requireRole("admin"), async (req:
         id: randomUUID(),
         email,
         role: role as TeamRole,
-        tokenHash: hashInvitationToken(token),
         invitedBy: req.userId,
         expiresAt,
       })
       .returning();
 
-    res.status(201).json({ ...serializeTeamInvitation(row!), token });
+    res.status(201).json(serializeTeamInvitation(row!));
   } catch (err) {
     req.log.error({ err }, "Failed to create team invitation");
     res.status(500).json({ error: "Internal server error" });

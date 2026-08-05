@@ -24,7 +24,6 @@ import type {
   AutoReportScheduleInput,
   AutoReportScheduleUpdate,
   ClaimOperatorBody,
-  CreatedTeamInvitation,
   GetSheetCountsParams,
   HealthStatus,
   MangoCredentialsInput,
@@ -470,11 +469,11 @@ export const getCreateAdminInvitationUrl = () => {
 }
 
 /**
- * @summary Create a team invitation with a pre-assigned role (admin only)
+ * @summary Pre-assign a role to an email address; applied when that person first signs in (admin only)
  */
-export const createAdminInvitation = async (teamInvitationInput: TeamInvitationInput, options?: Parameters<typeof customFetch>[1]): Promise<CreatedTeamInvitation> => {
+export const createAdminInvitation = async (teamInvitationInput: TeamInvitationInput, options?: Parameters<typeof customFetch>[1]): Promise<TeamInvitation> => {
 
-  return customFetch<CreatedTeamInvitation>(getCreateAdminInvitationUrl(),
+  return customFetch<TeamInvitation>(getCreateAdminInvitationUrl(),
   {
     ...options,
     method: 'POST',
@@ -519,7 +518,7 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
     export type CreateAdminInvitationMutationError = ErrorType<void>
 
     /**
- * @summary Create a team invitation with a pre-assigned role (admin only)
+ * @summary Pre-assign a role to an email address; applied when that person first signs in (admin only)
  */
 export const useCreateAdminInvitation = <TError = ErrorType<void>,
     TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createAdminInvitation>>, TError,{data: BodyType<TeamInvitationInput>}, TContext>, request?: SecondParameter<typeof customFetch>}

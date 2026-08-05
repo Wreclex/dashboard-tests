@@ -2,11 +2,12 @@ import { pgTable, text, timestamp, uniqueIndex } from "drizzle-orm/pg-core";
 import { sql } from "drizzle-orm";
 
 /**
- * Pending team membership assignments created by an administrator.
+ * Team membership assignments created by an administrator.
  *
- * The raw invitation token is deliberately never stored. The recipient can
- * sign in normally with Clerk; their email is then matched to the active
- * assignment and their role is applied on their first /me request.
+ * This is a role pre-assignment keyed on email, NOT an access gate and not a
+ * secret link: anyone can still sign up with Clerk on their own. When the
+ * invited email first reaches us, the pre-assigned role is applied on that
+ * user's first /me request and the assignment is marked accepted.
  */
 export const teamInvitations = pgTable(
   "team_invitations",
@@ -14,7 +15,6 @@ export const teamInvitations = pgTable(
     id: text("id").primaryKey(),
     email: text("email").notNull(),
     role: text("role").notNull().default("employee"),
-    tokenHash: text("token_hash").notNull(),
     invitedBy: text("invited_by").notNull(),
     expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
     acceptedAt: timestamp("accepted_at", { withTimezone: true }),
@@ -23,9 +23,9 @@ export const teamInvitations = pgTable(
     createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
   },
   (table) => [
-    uniqueIndex("team_invitations_token_hash_unique").on(table.tokenHash),
-    // An admin can replace a pending invitation for an email, but cannot
-    // accidentally create two active assignments for the same person.
+    // At most one open assignment per person. "Open" here means unaccepted and
+    // unrevoked — an EXPIRED row still counts, so re-inviting the same address
+    // must revoke the old row first (see the invitation route).
     uniqueIndex("team_invitations_active_email_unique")
       .on(sql`lower(${table.email})`)
       .where(sql`${table.acceptedAt} IS NULL AND ${table.revokedAt} IS NULL`),
