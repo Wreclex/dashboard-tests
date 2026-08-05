@@ -1,6 +1,16 @@
 # See https://docs.github.com/en/get-started/getting-started-with-git/ignoring-files for more about ignoring files.
 
-# compiled output
+# ─── Secrets & environment ──────────────────────────────────────────────────
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+id_rsa*
+credentials.json
+secrets/
+
+# ─── Compiled output ──────────────────────────────────────────────────────────
 dist
 tmp
 out-tsc
@@ -8,10 +18,10 @@ out-tsc
 .expo
 .expo-shared
 
-# dependencies
+# ─── Dependencies ─────────────────────────────────────────────────────────────
 node_modules
 
-# IDEs and editors
+# ─── IDEs and editors ────────────────────────────────────────────────────────
 /.idea
 .project
 .classpath
@@ -27,23 +37,39 @@ node_modules
 !.vscode/launch.json
 !.vscode/extensions.json
 
-# misc
+# ─── Misc ─────────────────────────────────────────────────────────────────────
 /.sass-cache
 /connect.lock
 /coverage
 /libpeerconnection.log
 npm-debug.log
 yarn-error.log
+pnpm-debug.log*
 testem.log
 /typings
 
-# System Files
+# ─── System Files ─────────────────────────────────────────────────────────────
 .DS_Store
 Thumbs.db
 
+# ─── Cursor / AI rules ───────────────────────────────────────────────────────
 .cursor/rules/nx-rules.mdc
 .github/instructions/nx.instructions.md
 
-# Replit
+# ─── Replit ───────────────────────────────────────────────────────────────────
 .cache/
 .local/
+.config/
+.replit
+replit.nix
+.replitignore
+skills-lock.json
+
+# ─── Test & coverage artifacts ───────────────────────────────────────────────
+coverage/
+.nyc_output/
+*.lcov
+
+# ─── Logs ────────────────────────────────────────────────────────────────────
+*.log
+logs/
