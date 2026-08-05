@@ -1,6 +1,5 @@
-import * as express from "express";
-import { type Express } from "express";
-import * as cors from "cors";
+import express, { type Express } from "express";
+import cors from "cors";
 import { pinoHttp } from "pino-http";
 import type { IncomingMessage, ServerResponse } from "http";
 import { clerkMiddleware } from "@clerk/express";
