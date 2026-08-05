@@ -1,6 +1,6 @@
 {
   "version": 2,
-  "buildCommand": "cd artifacts/api-server && pnpm run build",
+  "buildCommand": "pnpm -r --filter \"./lib/**\" --if-present run build && pnpm -r --filter \"./artifacts/api-server\" run build",
   "installCommand": "pnpm install --frozen-lockfile",
   "outputDirectory": "artifacts/api-server/dist",
   "rewrites": [
