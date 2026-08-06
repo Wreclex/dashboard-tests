@@ -2,18 +2,16 @@
   "version": 2,
   "builds": [
     {
-      "src": "artifacts/api-server/package.json",
-      "use": "@vercel/node",
-      "config": { "includeFiles": ["dist/**", "artifacts/api-server/migrations/**"] }
+      "src": "package.json",
+      "use": "@vercel/node"
     }
   ],
   "installCommand": "pnpm install --frozen-lockfile",
-  "buildCommand": "pnpm run build",
+  "buildCommand": "pnpm --filter @workspace/api-server run build",
   "outputDirectory": "dist",
-  "rewrites": [
-    {
-      "source": "/(.*)",
-      "destination": "dist/index.mjs"
+  "functions": {
+    "api/index.js": {
+      "includeFiles": "dist/**"
     }
-  ]
+  }
 }
